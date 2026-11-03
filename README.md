@@ -29,11 +29,12 @@ C:\path\to\dsh-logistics
 **CLI / 非桌面 profile**：
 
 ```bash
-dsh plugin --profile web add "C:/path/to/dsh-logistics"
+dsh plugin --profile web add dsh-logistics@0.2.1
+dsh plugin --profile web add "C:/path/to/dsh-logistics"   # 本地开发
 dsh --profile web --dump-config | grep -A2 dsh-logistics
 ```
 
-> 0.2.1 起建议直接安装 npm 包或从源码目录安装。`dsh-logistics@0.1.0` 是旧的 7 专家/评分版本，不要与 0.2.x 的文档混用。
+> 0.2.1 起 npm 包已是新版；`dsh-logistics@0.1.0` 是旧的 7 专家/评分版本，不要与 0.2.x 的文档混用。
 
 ## 命令
 
