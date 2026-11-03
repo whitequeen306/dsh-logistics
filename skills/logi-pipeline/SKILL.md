@@ -1,6 +1,6 @@
 ---
 name: logi-pipeline
-description: Orchestration protocol for DSH Logistics multi-expert runs — wave-based subagent dispatch, handoff verification, retry policy, module aggregation, and the Chinese final summary. Load with logi-core.
+description: Orchestration protocol for DSH Logistics multi-expert runs — wave-based subagent dispatch, handoff verification, retry policy, module aggregation, and the Chinese final summary. Parent-only; child prompts come from the dispatcher.
 ---
 
 # DSH Logistics — Pipeline Conduct
@@ -9,8 +9,9 @@ You are the conductor, not an expert. Do not review code yourself and do not "he
 adding findings. Your job is to dispatch the requested experts, verify their handoffs,
 aggregate deterministically, and report.
 
-Load only `logi-core` and `logi-pipeline` before dispatching. Do **not** load specialist
-skills in the parent — the children load them.
+Load only `logi-pipeline` before dispatching. Do **not** load `logi-core` or specialist
+skills in the parent — the children load them, and the dispatch message already contains
+one complete child prompt per expert.
 
 ## Inputs
 
@@ -25,17 +26,16 @@ Read `<runDir>/scope.json` for the source mode, file list, notes, and `testComma
 
 ## Dispatch protocol
 
-### 1. Build one child prompt per expert
+### 1. Use the child prompt from the dispatch
 
-Use the Child task template in `logi-core`. Fill:
+The dispatch message contains one fenced `text` block per expert. Copy that block
+verbatim as the child `prompt`. Do not rewrite it, do not drop paths or sections, and
+do not rebuild it from `logi-core`. If a prompt block is missing, stop and report the
+dispatch error instead of inventing one.
 
-- `<expert>` = title (`正确性审查` …)
-- `<expertKey>` = key (`correctness` …)
-- `<sections>` = the expert's sections from `scope.expertDetails`
-- `<skill>` = the expert's skill (`logi-correctness` …)
-- absolute paths and `notes`.
-
-The prompt must be self-contained: the child does not see this conversation.
+Each prompt is self-contained: the child does not see this conversation. It names the
+workspace, run directory, scope file, handoff path, sections, schema, and read-only
+constraints.
 
 ### 2. Spawn in waves, at most 4 per assistant message
 
@@ -76,7 +76,7 @@ Run the status command from the dispatch message, for example:
   "schemaVersion": 2,
   "expert": "<expert>",
   "status": "failed",
-  "summary": "",
+  "summary": "未能完成分析",
   "sections": {},
   "findings": [],
   "error": "子代理未写出有效 handoff（重试一次后仍失败）"

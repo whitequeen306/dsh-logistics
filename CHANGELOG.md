@@ -2,6 +2,17 @@
 
 All notable changes to this project. Format follows [Keep a Changelog](https://keepachangelog.com/); versions use [SemVer](https://semver.org/).
 
+## [0.2.1] - 2026-11-03
+
+### Fixed
+
+- handoff 的 `sections` 计数现在会与 findings 实际数量核对；声明数与实际数不一致、未知 section 或全零空报告都会被判为无效，不再出现“空 handoff 也算通过”。
+- `docs/logistics/latest.md` / `.logistics/latest.json` 只由“默认四模块完整”运行更新；单模块或部分覆盖只写本次 run 目录，避免覆盖上一份完整报告。
+- `maintainability` 的 `medium` 上限和 `perf` 的 `kind: plan` 现在由 `lib/findings.js` 强制，而不只是 skill 里的提示。
+- 跨专家去重在严重度/置信度相同时按 `EXPERT_PRIORITY` 选主专家（security > correctness > reliability > maintainability > perf）。
+- 子代理提示词改为 `buildChildPrompt` 单一来源；删除 `logi-core` 中重复的 Child task template，`logi-pipeline` 直接复制派发消息中的完整提示词。失败 handoff 使用 `expert` 字段，与 schema 一致。
+- 50 个 `node:test` 测试，新增 section 计数、latest 发布边界、修复 `kind`/严重度约束、去重优先级、子提示词自包含与 4 反引号围栏覆盖。
+
 ## [0.2.0] - 2026-11-03
 
 按 `MODULE-DECISION.md` 完成模块收敛。这是一次 **BREAKING** 变更：旧的 7 专家、档位命令、健康分、基线与门禁全部移除。

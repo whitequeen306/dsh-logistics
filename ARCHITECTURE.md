@@ -1,6 +1,6 @@
-# dsh-logistics 架构与执行模型（0.2.0）
+# dsh-logistics 架构与执行模型（0.2.1）
 
-> 本文描述 **0.2.0 已实现**的结构，不是路线图。模块取舍的决策记录见 [MODULE-DECISION.md](./MODULE-DECISION.md)；0.1.0 的 7 专家/评分架构保留在 git 历史与 [旧版 master](https://github.com/whitequeen306/dsh-logistics/tree/master) 中。
+> 本文描述 **0.2.1 已实现**的结构，不是路线图。模块取舍的决策记录见 [MODULE-DECISION.md](./MODULE-DECISION.md)；0.1.0 的 7 专家/评分架构保留在 git 历史与 [旧版 master](https://github.com/whitequeen306/dsh-logistics/tree/master) 中。
 
 ## 1. 一句话模型
 
@@ -329,4 +329,4 @@ docs/logistics/latest.md        # 仅 coverage.complete 时更新
 - 编排：`skills/logi-pipeline/SKILL.md`
 - 专家：`skills/logi-correctness|security|reliability|maintainability|perf/SKILL.md`
 - 修复：`skills/logi-fix/SKILL.md`
-- 测试：`test/*.test.js`（42 个）
+- 测试：`test/*.test.js`（50 个）

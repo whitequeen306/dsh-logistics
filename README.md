@@ -33,7 +33,7 @@ dsh plugin --profile web add "C:/path/to/dsh-logistics"
 dsh --profile web --dump-config | grep -A2 dsh-logistics
 ```
 
-> 0.2.0 目前建议从源码目录安装。npm 上的 `dsh-logistics@0.1.0` 是旧的 7 专家/评分版本，不要与 0.2.0 的文档混用。
+> 0.2.1 起建议直接安装 npm 包或从源码目录安装。`dsh-logistics@0.1.0` 是旧的 7 专家/评分版本，不要与 0.2.x 的文档混用。
 
 ## 命令
 
@@ -177,7 +177,7 @@ docs/logistics/latest.md      # 最近一次完整报告
 ## 开发
 
 ```bash
-npm test          # node --test，42 个测试
+npm test          # node --test，50 个测试
 npm run check     # 语法检查 + 全部测试
 ```
 

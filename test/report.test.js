@@ -180,3 +180,49 @@ test('assigns stable line-independent IDs and keeps the worst severity', () => {
     cleanup(root)
   }
 })
+
+test('rejects a handoff whose section counts do not match findings', () => {
+  const root = initRepo()
+  try {
+    const created = makeScope(root, ['correctness'])
+    const declared = handoff('correctness', [])
+    declared.sections.logic = 1
+    write(created.runDir, 'handoff/correctness.json', JSON.stringify(declared, null, 2))
+
+    const { report, latestMarkdownPath } = buildReport({
+      root,
+      runDir: created.runDir,
+      scope: created.scope,
+      config: {},
+    })
+
+    assert.deepEqual(report.coverage.invalid, ['correctness'])
+    assert.equal(report.coverage.complete, false)
+    assert.equal(latestMarkdownPath, undefined)
+    assert.ok(report.warnings.some((warning) => warning.includes('sections 计数')))
+  } finally {
+    cleanup(root)
+  }
+})
+
+test('single-expert runs are complete but never publishable latest', () => {
+  const root = initRepo()
+  try {
+    const created = makeScope(root, ['correctness'])
+    writeHandoffs(created, { correctness: [] })
+
+    const { report, latestMarkdownPath } = buildReport({
+      root,
+      runDir: created.runDir,
+      scope: created.scope,
+      config: {},
+    })
+
+    assert.equal(report.coverage.complete, true)
+    assert.equal(report.coverage.publishable, false)
+    assert.equal(latestMarkdownPath, undefined)
+    assert.equal(existsSync(join(root, '.logistics', 'latest.json')), false)
+  } finally {
+    cleanup(root)
+  }
+})

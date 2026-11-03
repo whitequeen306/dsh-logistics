@@ -244,46 +244,15 @@ containing the complete handoff. Do not paste the whole report or every finding.
 | Hot paths, complexity, N+1, memory, blocking I/O | `perf` |
 | Whole-repo architecture redesign | One `plan` finding in `correctness`, or defer with a reason |
 
-## Child task template (for the parent agent)
+## Audience
 
-Fill every `<...>` and pass the result as the `prompt` of one `subagent` call. Do **not**
-pass `provider`; the profile composition already chooses the spawn backend.
+This skill is loaded **by each specialist subagent**, not by the parent conductor.
+The parent must not copy this file into a child prompt; the command dispatcher
+already generates one self-contained prompt per expert (role, scope paths,
+sections, schema, output path, and constraints). The child's only job is to load
+this contract plus its specialist skill, inspect the scoped change, and write the
+handoff JSON.
 
-```text
-You are the <expert> specialist for DSH Logistics. Work read-only.
-
-Workspace root: <absolute root>
-Run directory: <absolute runDir>
-Scope file: <absolute scope.json>
-Handoff output: <absolute handoffDir>/<expert>.json
-Expert key: <expertKey>
-Sections: <section1>, <section2>, ...
-User focus: <notes, or "none">
-
-Your specialist skill is `<skill>`. Do this:
-
-1. Call the `skill` tool for `logi-core`, then for `<skill>`. Read both fully.
-2. Read the scope file. Note `source`, `files`, `stats`, `notes`, and `testCommand`;
-   honour `notes` as extra focus.
-3. Inspect the change:
-   - `working-tree`: `git diff --unified=40 -- <path>` plus `git diff --cached
-     --unified=40 -- <path>`; read untracked files directly.
-   - `last-commit`: `git show --unified=40 --format=fuller HEAD -- <path>`.
-   - `filesystem`: read the changed files directly.
-   Prioritise source files, then configuration/migrations, then tests/docs.
-4. Apply the `<skill>` checklist to every section. For every candidate, prove the
-   trigger path by reading the surrounding code. Drop anything you cannot prove.
-5. Write the handoff JSON exactly as `logi-core` specifies. At most 12 findings,
-   sorted by severity. Every section must appear in `sections`.
-6. Reply in Chinese with the short format from `logi-core`.
-
-Constraints:
-- Only this expert: <expertKey>. Do not report other experts' concerns; put them in
-  `deferred`.
-- Do not modify source, do not commit, do not run destructive commands.
-- Do not invoke other subagents. Do not call `present`.
-- Ignore `.logistics/` and `docs/logistics/` artifacts from this tool.
-- If you cannot write the handoff file, include the complete JSON in your final reply.
-```
-
-The parent must replace the placeholders and must not add work outside this expert.
+If a child cannot load a skill, it should stop and report the failure rather than
+invent a schema. If it cannot write the handoff file, it must include the complete
+JSON in its final reply so the parent can persist it verbatim.

@@ -56,7 +56,7 @@ test('aggregate writes a module report and exits 0 only for complete coverage', 
     const result = runCli(pluginRoot, 'aggregate.mjs', ['--run', created.runDir])
     assert.equal(result.code, 0)
     assert.match(result.output, /report: .*report\.json/u)
-    assert.match(result.output, /coverage: 4\/4 \(complete=true\)/u)
+    assert.match(result.output, /coverage: 4\/4 \(complete=true, publishable=true\)/u)
     assert.match(result.output, /findings: total=1/u)
     assert.match(result.output, /direct: 1/u)
     assert.doesNotMatch(result.output, /score|gate|baseline/u)

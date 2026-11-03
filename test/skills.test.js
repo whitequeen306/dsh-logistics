@@ -51,13 +51,14 @@ test('specialist skills match the five expert keys and declare sections', () => 
   }
 })
 
-test('core contract documents schemaVersion 2, sections, kinds, and the child template', () => {
+test('core contract documents schemaVersion 2, sections, kinds, and its audience', () => {
   const content = readSkill('logi-core').content
-  for (const token of ['schemaVersion', 'sections', 'direct', 'plan', 'Child task template', 'fix']) {
+  for (const token of ['schemaVersion', 'sections', 'direct', 'plan', 'Audience', 'parent', 'fix']) {
     assert.match(content, new RegExp(token, 'iu'), token)
   }
   assert.match(content, /kind[^\n]*direct/iu)
   assert.match(content, /summary/iu)
+  assert.doesNotMatch(content, /Child task template/iu)
 })
 
 test('pipeline documents wave dispatch, status, aggregate, and hard stop', () => {
