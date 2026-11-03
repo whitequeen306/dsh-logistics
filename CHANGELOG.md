@@ -42,8 +42,6 @@ All notable changes to this project. Format follows [Keep a Changelog](https://k
 - `src/a.js` 等根级源码文件正确归入 `src` 模块，而不是 `(root)`。
 - 派发命令使用绝对 Node 路径并正确引用 Windows 路径。
 
-[0.2.0]: https://github.com/whitequeen306/dsh-logistics/releases/tag/v0.2.0
-
 ## [0.1.0] - 2026-11-03
 
 Initial DSH-native release, adapted from CodeCortexLoop 2.2.0.
