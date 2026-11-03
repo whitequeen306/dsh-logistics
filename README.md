@@ -18,23 +18,29 @@
 
 要求：DeepSeek Harness `0.2.1` 或更新版本，Node.js `^22.19.0 || >=24.0.0`。
 
-从本地目录安装（路径用绝对路径）：
+**DSH Desktop**：桌面版独占管理 `desktop` profile，命令行 `dsh plugin --profile desktop add` 会被拒绝。请打开 **Settings → Plugins → 安装第三方插件（Add plugin）**，填入本机绝对路径：
 
-```bash
-dsh plugin --profile desktop add "C:/path/to/dsh-logistics"
+```text
+C:\Users\hp\Desktop\dsh\dsh-logistics
 ```
 
-发布到 npm 后也可以：
+安装完成后刷新 / 重启应用，输入 `/logi` 应能看到命令补全。插件的本地目录可直接作为安装源，无需先发布到 npm。
+
+**CLI / 非桌面 profile**：
 
 ```bash
+dsh plugin --profile web add "C:/path/to/dsh-logistics"
+# 或发布到 npm 后
 dsh plugin add dsh-logistics
 ```
 
-安装后重启 / 刷新 DSH，输入 `/logi` 应能看到命令补全。检查配置：
+检查配置：
 
 ```bash
-dsh --profile desktop --dump-config | grep -A2 dsh-logistics
+dsh --profile web --dump-config | grep -A2 dsh-logistics
 ```
+
+> 桌面版如果拒绝安装，请确认填的是**目录**而不是 `package.json`，并确认目录里存在 `cordis.patch.yml` 与 `lib/index.js`。
 
 ## 命令
 
