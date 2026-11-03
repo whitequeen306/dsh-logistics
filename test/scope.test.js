@@ -59,6 +59,18 @@ test('createScope falls back to the last commit when the tree is clean', (t) => 
   assert.equal(scope.git.dirty, false)
 })
 
+test('generated logistics files do not count as worktree changes', (t) => {
+  const root = initRepo()
+  t.after(() => cleanup(root))
+  write(root, '.logistics/runs/demo/scope.json', '{}')
+  write(root, 'docs/logistics/latest.md', '# demo report\n')
+
+  const { scope } = createScope(scopeOptions(root))
+  assert.equal(scope.source, 'last-commit')
+  assert.equal(scope.git.dirty, false)
+  assert.ok(scope.files.every((file) => !file.path.startsWith('.logistics/')))
+})
+
 test('auto mode expands the recommended tier and its passes', (t) => {
   const root = initRepo()
   t.after(() => cleanup(root))
