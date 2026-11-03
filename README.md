@@ -4,7 +4,7 @@
 
 安装后获得一组 `/logi-*` 命令：一条命令完成范围收集、专家子代理调度、结果聚合、健康分与基线门禁。它不修改源码，只做只读审查与报告。
 
-> 从 [CodeCortexLoop](https://github.com/whitequeen306/code-cortex-loop)（MIT）迁移而来。命令、编排与报告格式已针对 DSH 重写；领域知识保留在 10 个 skill 中。
+> 从 CodeCortexLoop（MIT，原仓库留存于 [master 分支](https://github.com/whitequeen306/dsh-logistics/tree/master)）迁移而来。命令、编排与报告格式已针对 DSH 重写；领域知识保留在 10 个 skill 中。
 
 ## 它能做什么
 
@@ -208,4 +208,4 @@ cordis.patch.yml  # DSH bundle patch
 
 MIT。见 [LICENSE](./LICENSE)。
 
-原始项目 [CodeCortexLoop](https://github.com/whitequeen306/code-cortex-loop) 亦为 MIT；本项目的命令命名、编排协议、报告格式与 DSH 集成已重写，领域检查清单与评分思想来自原项目。
+原始项目 [CodeCortexLoop（原仓库 master 分支）](https://github.com/whitequeen306/dsh-logistics/tree/master) 亦为 MIT；本项目的命令命名、编排协议、报告格式与 DSH 集成已重写，领域检查清单与评分思想来自原项目。
