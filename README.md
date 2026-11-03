@@ -2,9 +2,9 @@
 
 **项目后勤，为 DeepSeek Harness 而生。**
 
-安装后获得一组 `/logi-*` 命令：先做确定性的范围收集，再让专家子代理按模块审查，最后生成一份**按模块组织、可直接照着修**的中文报告。报告里没有健康分，也不做基线门禁；每个问题都有稳定的 ID，你可以挑自己关心的 ID 交给 `/logi-fix` 执行，或先 `--dry-run` 看方案。
+安装后获得一组 `/logi-*` 命令：先做确定性的范围收集，再让专家子代理按模块审查，最后由**你当前的主会话模型**担任主编，合并证据、定级、写模块化报告。机器只负责事实与 contract 校验，不替你打分或做质量裁决；报告里没有健康分，也不做基线门禁。每个问题都有稳定的 ID，你可以挑自己关心的 ID 交给 `/logi-fix` 执行，或先 `--dry-run` 看方案。
 
-> 从 CodeCortexLoop（MIT，原仓库留存于 [master 分支](https://github.com/whitequeen306/dsh-logistics/tree/master)）迁移而来。0.2.0 起，原来的 7 位专家收敛为 5 个模块，并删除评分、基线与门禁；设计记录见 [MODULE-DECISION.md](./MODULE-DECISION.md)。
+> 从 CodeCortexLoop（MIT，原仓库留存于 [master 分支](https://github.com/whitequeen306/dsh-logistics/tree/master)）迁移而来。0.2.0 起删除评分、基线与门禁；0.3.0 起改为「主编模型 + 薄机器层」，按专家可选模型路由。设计记录见 [MODULE-DECISION.md](./MODULE-DECISION.md)。
 
 ## 它能做什么
 
@@ -29,12 +29,12 @@ C:\path\to\dsh-logistics
 **CLI / 非桌面 profile**：
 
 ```bash
-dsh plugin --profile web add dsh-logistics@0.2.2
+dsh plugin --profile web add dsh-logistics@0.3.0
 dsh plugin --profile web add "C:/path/to/dsh-logistics"   # 本地开发
 dsh --profile web --dump-config | grep -A2 dsh-logistics
 ```
 
-> 0.2.1 起 npm 包已是新版；`dsh-logistics@0.1.0` 是旧的 7 专家/评分版本，不要与 0.2.x 的文档混用。0.2.2 起 skill 收敛为 6 个，不再有独立的 core/pipeline skill。
+> 0.3.0 起 npm 包是「主编模型 + 薄机器层」版本；`dsh-logistics@0.1.0` 是旧的 7 专家/评分版本，不要与 0.2/0.3 的文档混用。skill 收敛为 6 个，不再有独立的 core/pipeline skill。
 
 ## 命令
 
@@ -63,29 +63,32 @@ dsh --profile web --dump-config | grep -A2 dsh-logistics
 ```text
 /logi-*
    │
-   ├─ 1. 确定性预检（插件内 JS）
+   ├─ 1. 确定性事实（插件内 JS）
    │     git 状态 / diff / 最近提交、忽略规则、文件清单、
-   │     测试命令、模块归属
+   │     测试命令、模块归属、可选专家
    │     → .logistics/runs/<runId>/scope.json
    │
    ├─ 2. 注入派发消息（agent.followup）
-   │     派发消息自带完整编排协议；
-   │     父代理用内置 subagent 工具为每个模块启动一个只读子代理
+   │     主会话模型成为「主编」：读 scope.json，
+   │     默认派发 4 位专家；只有明确命中热路径时才追加 perf
    │
    ├─ 3. 子代理写 handoff
    │     .logistics/runs/<runId>/handoff/<expert>.json
    │
-   └─ 4. 聚合（插件内 CLI）
-         归一化、跨专家去重、稳定 ID、模块分组、修复顺序
-         → report.{json,md}
-         → docs/logistics/latest.md（仅完整覆盖时更新）
-         → .logistics/latest.json
+   ├─ 4. 主编裁决（主会话模型）
+   │     collect.mjs 收集完整性；bundle.mjs 生成候选材料
+   │     模型自己合并/去重/定级/取舍，写 verdict.json + report.md
+   │     verdict.mjs 只校验 contract，不判断内容好坏
+   │
+   └─ 5. 修复（可选）
+         /logi-fix 从最近一份完整 verdict.json 读取 direct 项
 ```
 
 - 父代理每条消息最多派发 **4 个**子代理；一轮结束后等完成通知，再继续下一波。
 - 缺失或非法 handoff 会重试一次；第二次失败写 `status: "failed"`，不会被当成“没问题”。
 - 子代理只读：不编辑源码、不提交、不删除、不嵌套子代理。
 - 没有 `subagent` 工具时**不会**退化成父代理自己审：直接报告限制并停止，避免把单会话猜测包装成专家结论。
+- 机器不生成最终报告，也不做质量门禁；`collect.mjs` 的 `complete` 只表示“证据收齐”，不表示“审查通过”。
 
 ## 报告
 
@@ -94,14 +97,16 @@ dsh --profile web --dump-config | grep -A2 dsh-logistics
   runs/<runId>/
     scope.json
     handoff/<expert>.json
-    report.json
-    report.md
+    handoffs.json             # bundle 生成的候选材料索引
+    packet.md                 # 给主编的候选材料
+    verdict.json              # 主编裁决（机器只校验 contract）
+    report.md                 # 人读的模块化报告
   latest.json
   fixes/<fixRunId>/
     selection.json
     fix.json
     fix-reverted.patch        # 仅失败回滚时出现
-docs/logistics/latest.md      # 最近一次完整报告
+docs/logistics/latest.md      # 仅默认四模块完整时更新
 ```
 
 报告包含：
@@ -111,9 +116,9 @@ docs/logistics/latest.md      # 最近一次完整报告
 - **未覆盖维度**：哪些模块没跑、handoff 失败 / 缺失 / 部分完成。
 - **建议修复顺序**：同文件合并、根因先行、可维护性单独批次、性能单独批次。
 
-每个 finding 有稳定 ID，例如 `COR-4F2A1`。ID 由 `专家 | 类别 | 文件 | 归一化标题` 计算，**不含行号**；代码移动不会让同一个问题换 ID。跨专家报告同一根因时只保留一条，并记录涉及的专家。
+每个 finding 有稳定 ID，例如 `COR-4F2A1`。ID 由 `专家 | 类别 | 文件 | 归一化标题` 计算，**不含行号**；代码移动不会让同一个问题换 ID。跨专家报告同一根因时，由主编决定保留哪一条，其余写入 `verdict.json` 的 `dropped`。
 
-`report.json` 的 schemaVersion 为 `2`，是稳定接口；`docs/logistics/latest.md` 与 `.logistics/latest.json` 只在**完整覆盖**时更新，部分覆盖会保留上一份完整报告。
+`verdict.json` 的 schemaVersion 为 `2`，是稳定接口；`docs/logistics/latest.md` 与 `.logistics/latest.json` 只在**默认四模块完整覆盖**时更新，单模块或部分覆盖会保留上一份完整报告。
 
 ### 为什么没有健康分
 
@@ -127,12 +132,12 @@ docs/logistics/latest.md      # 最近一次完整报告
 
 `/logi-fix` 是唯一的写操作入口，默认安全优先：
 
-1. **列出**：不带参数时，只列出最近完整报告中的 `direct` ID，不改任何文件。
+1. **列出**：不带参数时，只列出最近一份完整 `verdict.json` 中的 `direct` ID，不改任何文件。
 2. **计划**：`--dry-run <ID...>` 输出每个 ID 的位置、白名单文件、测试和步骤。
 3. **执行**：带 ID 且不带 `--dry-run` 时，要求：
-   - 最近报告 `schemaVersion = 2` 且覆盖完整；
+   - 最近 `verdict.json` 通过 contract 校验、`schemaVersion = 2` 且覆盖完整；
    - git 仓库、工作区没有未提交的源码改动；
-   - 报告生成后 HEAD 未变化（否则证据可能过期）；
+   - 判决生成后 HEAD 未变化（否则证据可能过期）；
    - ID 存在、`kind = direct`、不属于性能模块。
 4. 通过后创建 `.logistics/fixes/<fixRunId>/selection.json`，派发**一个** fixer 子代理。
 5. fixer 只改白名单文件，跑 `scope.testCommand`；失败时保存 `fix-reverted.patch`、回滚该组改动，并在 `fix.json` 标记 `failed` / `partial`。
@@ -154,6 +159,13 @@ docs/logistics/latest.md      # 最近一次完整报告
   "modules": {
     "packages/api": "API 服务",
     "apps/web": "Web 前端"
+  },
+  "models": {
+    "security": {
+      "provider": "wb",
+      "model": "glm-5.3",
+      "reasoningEffort": "high"
+    }
   }
 }
 ```
@@ -164,8 +176,17 @@ docs/logistics/latest.md      # 最近一次完整报告
 - `includeLastCommitWhenClean`：工作区干净时审查最近一次提交，而不是直接空跑。
 - `testCommand`：fixer 使用的测试命令；为空时自动从 `package.json` / `vitest` / `jest` / `pytest` / `go` / `cargo` 推断。
 - `modules`：模块显示名覆盖；不配置时按 `packages/*`、`apps/*`、去掉 `src`/`lib`/`app` 前缀后的首段推导。
+- `models`：按专家指定 `provider` / `model` / 可选 `reasoningEffort`。只有 DSH 开启子代理模型选择且该路由被允许时才生效；否则自动回退到父会话模型，不会中断任务。
 
 配置值非法时会回退到默认值并给出警告，不会让命令直接崩掉。
+
+### 关于“要不要加 perf”
+
+`scope.json` 只记录事实：改了哪些文件、多少行、什么语言、测试命令。是否追加性能专家是**主会话模型的判断**，不是机器风险分：
+
+- 默认跑四位：correctness / security / reliability / maintainability。
+- 只有 diff 明确涉及热路径（数据库查询或索引、请求链路、渲染循环、大列表、缓存/序列化、启动路径）时才追加 `perf`。
+- 不追加时，报告必须写“性能未覆盖”，不能把未检查当成没问题。
 
 ## 适用边界
 
@@ -178,7 +199,7 @@ docs/logistics/latest.md      # 最近一次完整报告
 ## 开发
 
 ```bash
-npm test          # node --test，49 个测试
+npm test          # node --test，56 个测试
 npm run check     # 语法检查 + 全部测试
 ```
 
@@ -189,14 +210,16 @@ lib/
   index.js        # DSH 入口：注册 6 个 skill、7 个命令
   commands.js     # 命令 handler：scope、派发、/logi-fix
   scope.js        # git/文件范围、忽略、测试命令、scope.json
-  dispatch.js     # 父代理派发 prompt、status/aggregate 命令
-  report.js       # handoff 校验、去重、模块报告、Markdown
+  dispatch.js     # 主编/子代理 prompt、collect/bundle/verdict 命令
+  handoffs.js     # handoff 校验、候选材料、重复提示
+  verdict.js      # 主编裁决 contract 校验
+  report.js       # 旧版聚合器（保留给兼容/测试）
   findings.js     # 归一化、稳定 ID、模块归属、排序
   config.js       # .logistics/config.json
   constants.js    # 5 个模块、severity、默认配置
   util.js         # 零依赖工具
-  cli/            # status.mjs / aggregate.mjs
-skills/           # core、pipeline、5 个专家、fix
+  cli/            # collect.mjs / bundle.mjs / verdict.mjs
+skills/           # 5 个专家 + fix
 test/             # node:test 与临时 git 仓库夹具
 cordis.patch.yml  # DSH bundle patch
 ```
@@ -204,8 +227,8 @@ cordis.patch.yml  # DSH bundle patch
 设计取舍：
 
 - **不 import `@deepseek-ai/*`**：官方包由 DSH 宿主提供，插件不重复安装，避免版本线冲突。
-- **命令只做确定性工作**：收集范围、建 run、注入派发消息；LLM 编排交给 skill + `subagent`，这样 UI 能看到子代理，失败也可见。
-- **聚合放在插件里**：去重、ID、模块分组、报告格式不依赖模型发挥，保证可重复。
+- **薄机器层**：机器只做范围、handoff 收集、contract 校验、ID 与安全边界；质量判断和成文交给主会话模型。
+- **主编模型**：默认主会话模型担任 editor-in-chief，可读原始 handoff、合并/丢弃、定级；不把“机器去重结果”当成最终结论。
 - **单包 + 清晰分层**：当前规模不值得拆成多个 npm 包；模块边界体现在 `lib/`、`skills/` 和文档中的执行方法上。
 
 ## 许可

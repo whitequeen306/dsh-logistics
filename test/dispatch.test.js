@@ -20,7 +20,15 @@ const scope = {
   output: {
     runDir: 'C:/tmp/run',
     handoffDir: 'C:/tmp/run/handoff',
+    verdictJson: 'C:/tmp/run/verdict.json',
+    packetMarkdown: 'C:/tmp/run/packet.md',
+    handoffsJson: 'C:/tmp/run/handoffs.json',
+    reportMarkdown: 'C:/tmp/run/report.md',
+    latestMarkdown: 'C:/tmp/run/latest.md',
+    latestJson: 'C:/tmp/run/latest.json',
   },
+  optionalExperts: ['perf'],
+  models: {},
 }
 
 test('child prompt is self-contained and names one expert', () => {
@@ -48,16 +56,45 @@ test('single dispatch embeds the exact child prompt once', () => {
   assert.doesNotMatch(text, /Child task template/)
 })
 
-test('pipeline dispatch embeds one prompt per expert', () => {
+test('pipeline dispatch is model-first and uses collect/bundle/verdict, not a quality gate', () => {
   const text = buildPipelineDispatch({
     command: '/logi',
     scope,
     pluginRoot: 'C:/plugin',
   })
-  assert.match(text, /### correctness/)
-  assert.match(text, /### security/)
-  assert.match(text, /```json/u)
-  assert.match(text, /最多同时发 4 个 subagent/)
-  assert.doesNotMatch(text, /provider"s*:/)
-  assert.doesNotMatch(text, /logi-core|logi-pipeline/u)
+  assert.match(text, /主编/u)
+  assert.match(text, /collect\.mjs/u)
+  assert.match(text, /bundle\.mjs/u)
+  assert.match(text, /verdict\.mjs/u)
+  assert.match(text, /packet\.md/u)
+  assert.match(text, /性能未覆盖/u)
+  assert.match(text, /不是质量门禁/u)
+  assert.doesNotMatch(text, /status\.mjs|aggregate\.mjs/u)
+})
+
+test('single dispatch uses the editor protocol and never updates latest', () => {
+  const text = buildSingleDispatch({
+    command: '/logi-correctness',
+    expertKey: 'correctness',
+    scope: { ...scope, experts: ['correctness'] },
+    pluginRoot: 'C:/plugin',
+  })
+  assert.match(text, /单模块/u)
+  assert.match(text, /不要\*\*更新/u)
+  assert.match(text, /verdict\.json/u)
+  assert.doesNotMatch(text, /status\.mjs|aggregate\.mjs/u)
+})
+
+test('model routes are rendered only when configured', () => {
+  const withRoute = buildPipelineDispatch({
+    command: '/logi',
+    scope: { ...scope, models: { security: { provider: 'wb', model: 'glm-5.3' } } },
+    pluginRoot: 'C:/plugin',
+  })
+  assert.match(withRoute, /provider/u)
+  assert.match(withRoute, /wb/u)
+  assert.match(withRoute, /glm-5\.3/u)
+
+  const withoutRoute = buildPipelineDispatch({ command: '/logi', scope, pluginRoot: 'C:/plugin' })
+  assert.match(withoutRoute, /父会话当前模型/u)
 })

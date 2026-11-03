@@ -2,6 +2,22 @@
 
 All notable changes to this project. Format follows [Keep a Changelog](https://keepachangelog.com/); versions use [SemVer](https://semver.org/).
 
+## [0.3.0] - 2026-11-03
+
+### Added
+
+- 主编模型（editor）裁决流程：主会话模型读 `scope.json`、派发专家、读原始 handoff 与 `packet.md`，合并/去重/定级后写 `verdict.json` + `report.md`；机器不再生成最终报告。
+- `collect.mjs`（盘点完整性）、`bundle.mjs`（候选材料 + 稳定 ID + `packet.md`）、`verdict.mjs`（contract 校验）。
+- 可选的专家模型路由：`.logistics/config.json` 的 `models.<expert>` 支持 `provider`/`model`/`reasoningEffort`；DSH 未开启子代理模型选择时自动回退主会话模型。
+- `/logi` 的主编可按 diff 判断是否追加 `perf`；不追加时报告明确写“性能未覆盖”。
+
+### Changed
+
+- `scope.json` 新增 `optionalExperts`、`models`、`verdictJson`、`packetMarkdown`、`handoffsJson`；`handoff` 保留 schemaVersion 2 的 section 计数校验。
+- `/logi-fix` 改为读取最近完整 verdict，而不是机器报告；selection 记录 `verdictRunId`/`verdictPath`。
+- 派发消息不再依赖 `status.mjs`/`aggregate.mjs` 作为质量门禁；旧 CLI 保留兼容，但不再在新流程中使用。
+- 56 个 `node:test` 测试，新增 verdict/collect/bundle、模型路由、主编协议、单模块 latest 边界覆盖。
+
 ## [0.2.2] - 2026-11-03
 
 ### Changed

@@ -66,10 +66,23 @@ function makeCompleteReport(root) {
     scope: created.scope,
     config: { maxFindingsPerPass: 12 },
   })
+  write(created.runDir, 'verdict.json', JSON.stringify({
+    schemaVersion: 2,
+    runId: report.runId,
+    generatedAt: new Date().toISOString(),
+    coverage: {
+      expected: created.scope.experts,
+      received: created.scope.experts,
+      missing: [],
+      complete: true,
+    },
+    findings: report.findings,
+    dropped: [],
+  }, null, 2))
   return report
 }
 
-test('registers exactly seven 0.2.2 commands', () => {
+test('registers exactly seven 0.3.0 commands', () => {
   const commands = createCommands({ pluginRoot })
   assert.deepEqual(
     commands.map((command) => command.name),
@@ -166,7 +179,7 @@ test('/logi-fix without a report and with unsupported flags returns errors', asy
     const missing = invocation(root)
     const missingResult = await command.handler(missing.invocation)
     assert.equal(missingResult.kind, 'error')
-    assert.match(missingResult.text, /还没有完整报告/u)
+    assert.match(missingResult.text, /还没有主编判决/u)
 
     makeCompleteReport(root)
     const unsupported = invocation(root, { rawInput: '--all' })

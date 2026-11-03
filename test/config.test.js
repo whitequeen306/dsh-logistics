@@ -19,6 +19,28 @@ test('default config includes build, dependency, and generated paths', () => {
     assert.equal(config.maxFindingsPerPass, 12)
     assert.equal(config.includeLastCommitWhenClean, true)
     assert.deepEqual(config.modules, {})
+    assert.deepEqual(config.models, {})
+  } finally {
+    cleanup(root)
+  }
+})
+
+test('expert model routes require provider and model together', () => {
+  const root = tempDir()
+  try {
+    writeConfig(root, {
+      models: {
+        security: { provider: 'wb', model: 'glm-5.3', reasoningEffort: 'high' },
+        correctness: { provider: 'wb' },
+        unknown: { provider: 'wb', model: 'x' },
+      },
+    })
+    const { config, warnings } = loadConfig(root)
+    assert.deepEqual(config.models.security, { provider: 'wb', model: 'glm-5.3', reasoningEffort: 'high' })
+    assert.equal(config.models.correctness, undefined)
+    assert.equal(config.models.unknown, undefined)
+    assert.ok(warnings.some((warning) => warning.includes('models.correctness')))
+    assert.ok(warnings.some((warning) => warning.includes('models.unknown')))
   } finally {
     cleanup(root)
   }
