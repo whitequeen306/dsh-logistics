@@ -76,6 +76,11 @@ Call the `subagent` tool with:
 After sending the wave, **end your turn** with one short Chinese line, for example:
 `已派发 4 位专家（正确性、安全、测试、错误处理），等待完成通知。`
 
+When completion notices arrive, first check whether any planned pass has **no child
+yet**. If so, send the next wave (up to 4) and end the turn again. Only after every
+planned pass has been dispatched do you move on to handoff verification; never treat
+an unspawned pass as a missing handoff.
+
 Do not fabricate results, do not busy-poll with sleeps, and do not start the aggregate
 before the children are terminal. Completion notices wake you; that is the signal to
 continue.
