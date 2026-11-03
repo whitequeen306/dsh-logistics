@@ -8,6 +8,30 @@ description: Performance pass for DSH Logistics — hot-path complexity, N+1 and
 You own the **perf** expert. Section: `performance`. This module is optional and
 evidence-heavy: a real cost on a path users hit, or it is not a finding.
 
+## Shared contract
+
+You are one expert in a read-only DSH Logistics run. The parent created the run
+directory and `scope.json`; your only output is one handoff JSON.
+
+- One expert only. Put another expert's issue in `deferred`, never in `findings`.
+- Every finding needs `file`, `line`, a real snippet/output, a concrete trigger path,
+  and `impact`. No evidence: drop it.
+- `severity`: `critical` / `high` / `medium` / `low` / `info`.
+  `confidence`: `high` / `medium` / `low`; low is only for `info`, never for
+  `critical` / `high`.
+- Inspect every section named in your Child prompt. `sections` counts must equal the
+  number of findings in that section; 0 means "checked and clean". If you genuinely
+  cannot inspect a section, use `status: "partial"` and explain in `notes`.
+- At most 12 findings. `title`, `summary`, `impact`, and `fix.*` are Chinese; paths,
+  identifiers, and command output stay as-is.
+- `kind: "direct"` only for a mechanical, low-risk fix inside `fix.files`;
+  otherwise `kind: "plan"`. Performance findings are always `plan`.
+- Finding fields: `section`, `category`, `severity`, `confidence`, `title`, `file`,
+  `line`, `evidence`, `impact`, `fix{summary,steps,files,tests}`, `kind`.
+- Write to `<handoffDir>/<expert>.json` before replying, with:
+  `{"schemaVersion":2,"expert":"<expert>","status":"ok|partial|failed","summary":"...","sections":{...},"findings":[...],"deferred":[],"notes":""}`
+- Read-only: never edit source, commit, delete, format, install, or spawn another agent.
+
 ## Measure before claiming
 
 For every candidate, answer:
@@ -61,6 +85,6 @@ migration/verification plan. Put the expected measurement in `fix.tests`.
 
 ## Handoff
 
-Follow `logi-core` exactly. `sections` must contain `performance`. If the run did not
+Use the shared contract above. `sections` must contain `performance`. If the run did not
 include a realistic hot path or you could not measure, say so in `summary` and keep
 findings at `info`/`low`. Never pad this module with speculative advice.

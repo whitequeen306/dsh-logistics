@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { apply, inject, name } from '../lib/index.js'
 
-test('plugin entry registers all 0.2.0 skills and commands against a DSH-like context', () => {
+test('plugin entry registers all 0.2.2 skills and commands against a DSH-like context', () => {
   const skills = []
   const commands = []
   const logs = []
@@ -17,8 +17,8 @@ test('plugin entry registers all 0.2.0 skills and commands against a DSH-like co
 
   apply(ctx)
 
-  assert.equal(skills.length, 8)
-  assert.equal(new Set(skills.map((skill) => skill.name)).size, 8)
+  assert.equal(skills.length, 6)
+  assert.equal(new Set(skills.map((skill) => skill.name)).size, 6)
   for (const skill of skills) {
     assert.match(skill.name, /^[a-z0-9]+(?:-[a-z0-9]+)*$/u)
     assert.ok(skill.description.length > 0)
@@ -28,8 +28,6 @@ test('plugin entry registers all 0.2.0 skills and commands against a DSH-like co
   assert.deepEqual(
     new Set(skills.map((skill) => skill.name)),
     new Set([
-      'logi-core',
-      'logi-pipeline',
       'logi-correctness',
       'logi-security',
       'logi-reliability',
@@ -52,5 +50,5 @@ test('plugin entry registers all 0.2.0 skills and commands against a DSH-like co
     ],
   )
   assert.equal(new Set(commands.map((command) => command.name)).size, 7)
-  assert.ok(logs.some((line) => line.includes('8 个 skill') && line.includes('7 个命令')))
+  assert.ok(logs.some((line) => line.includes('6 个 skill') && line.includes('7 个命令')))
 })

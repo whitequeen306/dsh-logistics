@@ -69,7 +69,7 @@ function makeCompleteReport(root) {
   return report
 }
 
-test('registers exactly seven 0.2.0 commands', () => {
+test('registers exactly seven 0.2.2 commands', () => {
   const commands = createCommands({ pluginRoot })
   assert.deepEqual(
     commands.map((command) => command.name),
@@ -101,7 +101,8 @@ test('/logi creates a four-expert pipeline scope and queues one dispatch', async
     assert.match(result.text, /4 位专家/u)
     assert.equal(messages.length, 1)
     assert.match(messages[0].content[0].text, /后勤派发 · \/logi/u)
-    assert.match(messages[0].content[0].text, /logi-pipeline/u)
+    assert.match(messages[0].content[0].text, /最多同时发 4 个 subagent/u)
+    assert.match(messages[0].content[0].text, /logi-correctness/u)
 
     const scope = JSON.parse(readFileSync(join(latestRunDir(root), 'scope.json'), 'utf8'))
     assert.deepEqual(scope.experts, ['correctness', 'security', 'reliability', 'maintainability'])

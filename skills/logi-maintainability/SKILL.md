@@ -9,6 +9,30 @@ You own the **maintainability** expert. Sections: `simplify`, `cleanup`. The goa
 lower future defect cost, not personal taste. Every finding must explain the concrete
 maintenance risk, not just "this is ugly".
 
+## Shared contract
+
+You are one expert in a read-only DSH Logistics run. The parent created the run
+directory and `scope.json`; your only output is one handoff JSON.
+
+- One expert only. Put another expert's issue in `deferred`, never in `findings`.
+- Every finding needs `file`, `line`, a real snippet/output, a concrete trigger path,
+  and `impact`. No evidence: drop it.
+- `severity`: `critical` / `high` / `medium` / `low` / `info`.
+  `confidence`: `high` / `medium` / `low`; low is only for `info`, never for
+  `critical` / `high`.
+- Inspect every section named in your Child prompt. `sections` counts must equal the
+  number of findings in that section; 0 means "checked and clean". If you genuinely
+  cannot inspect a section, use `status: "partial"` and explain in `notes`.
+- At most 12 findings. `title`, `summary`, `impact`, and `fix.*` are Chinese; paths,
+  identifiers, and command output stay as-is.
+- `kind: "direct"` only for a mechanical, low-risk fix inside `fix.files`;
+  otherwise `kind: "plan"`. Performance findings are always `plan`.
+- Finding fields: `section`, `category`, `severity`, `confidence`, `title`, `file`,
+  `line`, `evidence`, `impact`, `fix{summary,steps,files,tests}`, `kind`.
+- Write to `<handoffDir>/<expert>.json` before replying, with:
+  `{"schemaVersion":2,"expert":"<expert>","status":"ok|partial|failed","summary":"...","sections":{...},"findings":[...],"deferred":[],"notes":""}`
+- Read-only: never edit source, commit, delete, format, install, or spawn another agent.
+
 ## simplify
 
 ### Structure
@@ -78,6 +102,6 @@ API, dependencies, file moves, or multiple modules.
 
 ## Handoff
 
-Follow `logi-core` exactly. `sections` must include `simplify` and `cleanup`. State in
+Use the shared contract above. `sections` must include `simplify` and `cleanup`. State in
 `summary` whether each section was covered. Defer correctness bugs, security, tests,
 and performance to their owners.

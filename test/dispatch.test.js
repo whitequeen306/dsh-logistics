@@ -31,6 +31,7 @@ test('child prompt is self-contained and names one expert', () => {
   assert.match(prompt, /sections/)
   assert.match(prompt, /不要调用其他 subagent/)
   assert.doesNotMatch(prompt, /provider/)
+  assert.doesNotMatch(prompt, /logi-core/u)
 })
 
 test('single dispatch embeds the exact child prompt once', () => {
@@ -58,4 +59,5 @@ test('pipeline dispatch embeds one prompt per expert', () => {
   assert.match(text, /```json/u)
   assert.match(text, /最多同时发 4 个 subagent/)
   assert.doesNotMatch(text, /provider"s*:/)
+  assert.doesNotMatch(text, /logi-core|logi-pipeline/u)
 })

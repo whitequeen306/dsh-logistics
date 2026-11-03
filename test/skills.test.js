@@ -13,18 +13,16 @@ function readSkill(name) {
   return parseSkillFile(readFileSync(join(skillsDir, name, 'SKILL.md'), 'utf8'), name)
 }
 
-test('ships exactly the eight 0.2.0 skills', () => {
+test('ships exactly the six 0.2.2 skills', () => {
   const dirs = readdirSync(skillsDir, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
     .sort()
   assert.deepEqual(dirs, [
-    'logi-core',
     'logi-correctness',
     'logi-fix',
     'logi-maintainability',
     'logi-perf',
-    'logi-pipeline',
     'logi-reliability',
     'logi-security',
   ])
@@ -51,22 +49,16 @@ test('specialist skills match the five expert keys and declare sections', () => 
   }
 })
 
-test('core contract documents schemaVersion 2, sections, kinds, and its audience', () => {
-  const content = readSkill('logi-core').content
-  for (const token of ['schemaVersion', 'sections', 'direct', 'plan', 'Audience', 'parent', 'fix']) {
-    assert.match(content, new RegExp(token, 'iu'), token)
+test('every specialist carries the shared handoff contract inline', () => {
+  for (const expert of EXPERT_LIST) {
+    const parsed = readSkill(expert.skill)
+    for (const token of ['schemaVersion', 'sections', 'handoff', 'direct', 'plan', 'fix', 'kind']) {
+      assert.match(parsed.content, new RegExp(token, 'iu'), `${expert.skill}: ${token}`)
+    }
+    assert.match(parsed.content, /kind[^\n]*direct/iu)
+    assert.match(parsed.content, /summary/iu)
+    assert.doesNotMatch(parsed.content, /logi-core/u)
   }
-  assert.match(content, /kind[^\n]*direct/iu)
-  assert.match(content, /summary/iu)
-  assert.doesNotMatch(content, /Child task template/iu)
-})
-
-test('pipeline documents wave dispatch, status, aggregate, and hard stop', () => {
-  const content = readSkill('logi-pipeline').content
-  for (const token of ['4', 'status.mjs', 'aggregate.mjs', 'ready', 'subagent', 'No degraded']) {
-    assert.match(content, new RegExp(token, 'iu'), token)
-  }
-  assert.doesNotMatch(content, /同时让.*7.*专家/u)
 })
 
 test('fix skill documents selection, whitelist, tests, rollback, and no commit', () => {

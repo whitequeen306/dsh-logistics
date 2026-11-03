@@ -29,12 +29,12 @@ C:\path\to\dsh-logistics
 **CLI / 非桌面 profile**：
 
 ```bash
-dsh plugin --profile web add dsh-logistics@0.2.1
+dsh plugin --profile web add dsh-logistics@0.2.2
 dsh plugin --profile web add "C:/path/to/dsh-logistics"   # 本地开发
 dsh --profile web --dump-config | grep -A2 dsh-logistics
 ```
 
-> 0.2.1 起 npm 包已是新版；`dsh-logistics@0.1.0` 是旧的 7 专家/评分版本，不要与 0.2.x 的文档混用。
+> 0.2.1 起 npm 包已是新版；`dsh-logistics@0.1.0` 是旧的 7 专家/评分版本，不要与 0.2.x 的文档混用。0.2.2 起 skill 收敛为 6 个，不再有独立的 core/pipeline skill。
 
 ## 命令
 
@@ -69,8 +69,8 @@ dsh --profile web --dump-config | grep -A2 dsh-logistics
    │     → .logistics/runs/<runId>/scope.json
    │
    ├─ 2. 注入派发消息（agent.followup）
-   │     父代理加载 logi-core / logi-pipeline，
-   │     用内置 subagent 工具为每个模块启动一个只读子代理
+   │     派发消息自带完整编排协议；
+   │     父代理用内置 subagent 工具为每个模块启动一个只读子代理
    │
    ├─ 3. 子代理写 handoff
    │     .logistics/runs/<runId>/handoff/<expert>.json
@@ -178,7 +178,7 @@ docs/logistics/latest.md      # 最近一次完整报告
 ## 开发
 
 ```bash
-npm test          # node --test，50 个测试
+npm test          # node --test，49 个测试
 npm run check     # 语法检查 + 全部测试
 ```
 
@@ -186,7 +186,7 @@ npm run check     # 语法检查 + 全部测试
 
 ```text
 lib/
-  index.js        # DSH 入口：注册 8 个 skill、7 个命令
+  index.js        # DSH 入口：注册 6 个 skill、7 个命令
   commands.js     # 命令 handler：scope、派发、/logi-fix
   scope.js        # git/文件范围、忽略、测试命令、scope.json
   dispatch.js     # 父代理派发 prompt、status/aggregate 命令

@@ -1,6 +1,6 @@
-# dsh-logistics 架构与执行模型（0.2.1）
+# dsh-logistics 架构与执行模型（0.2.2）
 
-> 本文描述 **0.2.1 已实现**的结构，不是路线图。模块取舍的决策记录见 [MODULE-DECISION.md](./MODULE-DECISION.md)；0.1.0 的 7 专家/评分架构保留在 git 历史与 [旧版 master](https://github.com/whitequeen306/dsh-logistics/tree/master) 中。
+> 本文描述 **0.2.2 已实现**的结构，不是路线图。0.2.2 把共享契约折叠进每个专家 skill，删除了独立的 `logi-core` / `logi-pipeline`；模块取舍的决策记录见 [MODULE-DECISION.md](./MODULE-DECISION.md)。0.1.0 的 7 专家/评分架构保留在 git 历史与 [旧版 master](https://github.com/whitequeen306/dsh-logistics/tree/master) 中。
 
 ## 1. 一句话模型
 
@@ -21,10 +21,8 @@
 | 注册层 | `lib/index.js` | 加载 skill，注册 7 个命令 | 否 |
 | 命令层 | `lib/commands.js` | 取 cwd、建 run、注入派发、处理 `/logi-fix` | 否（只入队） |
 | 范围层 | `lib/scope.js` | git/文件扫描、忽略、模块文件清单、测试命令、`scope.json` | 否 |
-| 派发层 | `lib/dispatch.js` | 生成父代理可见的审查/修复 prompt 与 CLI 命令 | 否 |
-| 编排层 | `skills/logi-pipeline/SKILL.md` | 父代理分波派发、校验、重试、聚合、汇报 | 是 |
-| 专家层 | `skills/logi-*/SKILL.md` + `subagent` | 每位专家一个只读 child，写 handoff | 是 |
-| 契约层 | `skills/logi-core/SKILL.md` | 证据门槛、finding/handoff schema、Child task template | 被读取 |
+| 派发层 | `lib/dispatch.js` | 生成父代理可见的审查/修复 prompt 与 CLI 命令；child prompt 的唯一来源 | 否 |
+| 专家层 | `skills/logi-*/SKILL.md` + `subagent` | 每位专家一个只读 child；共享契约内联在专家 skill 中，写 handoff | 是 |
 | 后处理层 | `lib/report.js`、`lib/findings.js`、`lib/cli/*.mjs` | 校验、去重、ID、模块报告、覆盖状态 | 否 |
 | 修复层 | `lib/commands.js` `runFix`、`skills/logi-fix` | 选择 finding、创建 fixer、白名单/测试/回滚 | 是（单 child） |
 | 配置层 | `lib/config.js`、`lib/constants.js` | 忽略、上限、测试命令、模块显示名 | 否 |
@@ -100,10 +98,10 @@ cli → scope / config / report
   ├─ 1. createScope：git 状态 / diff / 最近提交 / 文件清单 / 测试命令
   │       → .logistics/runs/<runId>/scope.json
   │
-  ├─ 2. followup：父代理收到派发消息，加载 logi-core + logi-pipeline
+  ├─ 2. followup：父代理收到派发消息；消息自带完整编排协议
   │
   ├─ 3. 分波 subagent：每条 assistant 消息最多 4 个 child
-  │       每个 child 加载 logi-core + 一个专家 skill，只读，写 handoff
+  │       每个 child 只加载自己的专家 skill（共享契约内联在 skill 中），只读，写 handoff
   │
   ├─ 4. 完成通知 → status.mjs --expect <experts>
   │       missing/invalid 重试一次；第二次失败写 failed handoff
@@ -130,7 +128,7 @@ cli → scope / config / report
 ```text
 subagent({
   description: "logi-<expert>",
-  prompt: <logi-core Child task template 填充结果>
+  prompt: <buildChildPrompt 生成的完整 prompt>
 })
 ```
 
@@ -325,8 +323,6 @@ docs/logistics/latest.md        # 仅 coverage.complete 时更新
 - finding/ID/模块：`lib/findings.js`
 - 配置/常量：`lib/config.js`、`lib/constants.js`
 - CLI：`lib/cli/status.mjs`、`lib/cli/aggregate.mjs`
-- 契约：`skills/logi-core/SKILL.md`
-- 编排：`skills/logi-pipeline/SKILL.md`
-- 专家：`skills/logi-correctness|security|reliability|maintainability|perf/SKILL.md`
+- 契约与专家：`skills/logi-correctness|security|reliability|maintainability|perf/SKILL.md`
 - 修复：`skills/logi-fix/SKILL.md`
-- 测试：`test/*.test.js`（50 个）
+- 测试：`test/*.test.js`（49 个）

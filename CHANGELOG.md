@@ -2,6 +2,14 @@
 
 All notable changes to this project. Format follows [Keep a Changelog](https://keepachangelog.com/); versions use [SemVer](https://semver.org/).
 
+## [0.2.2] - 2026-11-03
+
+### Changed
+
+- 精简 skill 布局：从 8 个 skill 收敛为 6 个。删除 `logi-core` 与 `logi-pipeline`，把证据门槛、finding/handoff schema、只读约束和覆盖规则内联到 5 个专家 skill 中。
+- 派发消息与 `buildChildPrompt` 成为唯一的编排/子代理提示词来源；父代理不再加载编排 skill，子代理只加载自己的专家 skill。
+- 子代理 prompt、失败 handoff、README/ARCHITECTURE/CHANGELOG 全部改为 6-skill 说法；测试同步为 49 个。
+
 ## [0.2.1] - 2026-11-03
 
 ### Fixed
