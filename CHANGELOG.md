@@ -19,7 +19,7 @@ Initial DSH-native release, adapted from CodeCortexLoop 2.2.0.
 - Deterministic `/logi-gate` command and offline CLIs: `status.mjs`, `aggregate.mjs`, `gate.mjs`.
 - Chinese user-facing reports and command text; English skill internals.
 - Zero runtime dependencies; plain ESM; no `@deepseek-ai/*` imports so the plugin can sit next to the host's own packages.
-- 30 `node:test` tests covering util, config, scope, report, baseline, skills, command registration, plugin entry, and an offline end-to-end CLI pipeline.
+- 31 `node:test` tests covering util, config, scope, report, baseline, skills, command registration, plugin entry, and an offline end-to-end CLI pipeline.
 - README, MIT license with upstream attribution, `.gitignore`.
 
 ### Changed from CodeCortexLoop
@@ -28,6 +28,8 @@ Initial DSH-native release, adapted from CodeCortexLoop 2.2.0.
 - The Cursor/Claude tool-detection and single-session prompt orchestration were replaced by DSH command injection plus the native `subagent` tool.
 - Findings are aggregated by bundled JavaScript instead of model-driven post-processing.
 - Baseline fingerprints no longer include line numbers, so moved code does not appear as new debt.
+- Generated `.logistics/` and `docs/logistics/` paths are excluded from scope scans and staleness checks; untracked directories are expanded before filtering.
+- CLI commands prefer the running Node executable, so dispatch works even when `node` is not on `PATH`.
 - Coverage is tracked explicitly: a single-expert or tier run cannot report a green gate.
 
 ### Removed for 0.1.0
