@@ -1,0 +1,5 @@
+# Bundle patch: mount the logistics plugin on the profile root.
+# `name` must stay a package name (resolved through node_modules), not a path.
+- insert:
+    - id: dsh-logistics
+      name: dsh-logistics

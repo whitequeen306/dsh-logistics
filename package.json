@@ -1,0 +1,52 @@
+{
+  "name": "dsh-logistics",
+  "version": "0.1.0",
+  "description": "Project logistics for DeepSeek Harness — slash-command dispatch to specialist review subagents, with health score, reports, and a baseline ratchet.",
+  "type": "module",
+  "main": "./lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./skills/*": "./skills/*"
+  },
+  "files": [
+    "lib",
+    "skills",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "check": "node --check lib/index.js && node --test test/*.test.js"
+  },
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "code-review",
+    "security",
+    "testing",
+    "cleanup",
+    "baseline",
+    "subagents"
+  ],
+  "license": "MIT",
+  "author": "whitequeen306",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/whitequeen306/dsh-logistics.git"
+  },
+  "homepage": "https://github.com/whitequeen306/dsh-logistics#readme",
+  "bugs": {
+    "url": "https://github.com/whitequeen306/dsh-logistics/issues"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}
