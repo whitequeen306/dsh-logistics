@@ -6,7 +6,7 @@ import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { DEFAULT_CONFIG, PASS_LIST } from '../lib/constants.js'
 import { createScope } from '../lib/scope.js'
-import { cleanup, handoff, sampleFinding, tempDir } from './helpers.js'
+import { cleanup, handoff, initRepo, sampleFinding, tempDir } from './helpers.js'
 
 const pluginRoot = fileURLToPath(new URL('..', import.meta.url))
 
@@ -80,4 +80,38 @@ test('status, aggregate, and gate form a complete offline pipeline', (t) => {
   const after = run('gate.mjs', ['--root', root])
   assert.equal(after.code, 0, after.output)
   assert.match(after.output, /gate: pass \(exit 0\)/)
+})
+
+test('gate accept ignores generated report files in a git worktree', (t) => {
+  const root = initRepo()
+  t.after(() => cleanup(root))
+  const passes = PASS_LIST.map((pass) => pass.key)
+  const created = createScope({
+    cwd: root,
+    command: '/logi-full',
+    mode: 'full',
+    tier: 'full',
+    passes,
+    notes: '',
+    config: DEFAULT_CONFIG,
+  })
+  assert.equal(created.scope.git.sourceDirty, false)
+  for (const pass of passes) {
+    writeFileSync(join(created.runDir, 'handoff', `${pass}.json`), handoff(pass, pass === 'safety' ? [{
+      ...sampleFinding,
+      severity: 'critical',
+      title: '缺少鉴权',
+      ruleId: 'SEC-authz',
+      file: 'src/a.js',
+      line: 2,
+      evidence: 'deleteUser 未校验调用者权限',
+    }] : []))
+  }
+
+  const aggregate = run('aggregate.mjs', ['--run', created.runDir, '--root', root])
+  assert.equal(aggregate.code, 0, aggregate.output)
+
+  const accept = run('gate.mjs', ['--root', root, '--accept'])
+  assert.equal(accept.code, 0, accept.output)
+  assert.match(accept.output, /已接受基线/)
 })

@@ -21,7 +21,7 @@
 **DSH Desktop**：桌面版独占管理 `desktop` profile，命令行 `dsh plugin --profile desktop add` 会被拒绝。请打开 **Settings → Plugins → 安装第三方插件（Add plugin）**，填入本机绝对路径：
 
 ```text
-C:\Users\hp\Desktop\dsh\dsh-logistics
+C:\path\to\dsh-logistics
 ```
 
 安装完成后刷新 / 重启应用，输入 `/logi` 应能看到命令补全。插件的本地目录可直接作为安装源，无需先发布到 npm。
@@ -113,6 +113,13 @@ docs/logistics/latest.md # 最近一次报告，便于提交 / 分享
 ```
 
 报告包含：范围概览、专家完成情况、按严重度排序的问题、健康分、基线新增 / 已修复 / 剩余、门禁结论。`report.json` 是稳定接口，适合接 CI 或其他工具。
+
+建议在目标项目里忽略运行目录（保留 `baseline.json` 以便团队共享基线）：
+
+```gitignore
+.logistics/runs/
+.logistics/latest.json
+```
 
 ### 健康分
 
