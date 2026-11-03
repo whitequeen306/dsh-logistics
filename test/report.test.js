@@ -1,164 +1,182 @@
 import assert from 'node:assert/strict'
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import test from 'node:test'
-import { DEFAULT_CONFIG, PASS_LIST } from '../lib/constants.js'
-import { acceptBaseline } from '../lib/baseline.js'
-import { buildReport, computeScore } from '../lib/report.js'
-import { cleanup, handoff, sampleFinding, tempDir } from './helpers.js'
+import { buildReport, readLatestReport } from '../lib/report.js'
+import {
+  cleanup,
+  handoff,
+  initRepo,
+  makeScope,
+  sampleFinding,
+  write,
+} from './helpers.js'
 
-function makeScope(root, passes) {
-  const runId = 'run-test'
-  const runDir = join(root, '.logistics', 'runs', runId)
-  return {
-    runId,
-    runDir,
-    scope: {
-      schemaVersion: 1,
-      runId,
-      command: '/logi-full',
-      mode: 'full',
-      tier: 'full',
-      passes,
-      notes: '',
-      root,
-      cwd: root,
-      isGit: false,
-      source: 'filesystem',
-      createdAt: new Date().toISOString(),
-      git: {},
-      stats: { analyzedFiles: 3, filesChanged: 3, additions: 10, deletions: 2 },
-      summary: {
-        byStatus: {},
-        languages: [{ name: 'js', count: 3 }],
-        sourceFiles: 3,
-        testFiles: 0,
-        docsFiles: 0,
-        sensitiveFiles: 0,
-        dependencyFiles: 0,
-      },
-      risk: { level: 'medium', score: 2, reasons: [], recommendTier: 'standard', docsOnly: false },
-      testCommand: { command: 'node --test', source: 'package.json' },
-      files: [],
-      output: {},
-      warnings: [],
-    },
+function writeHandoffs(created, byExpert) {
+  for (const [expert, findings] of Object.entries(byExpert)) {
+    write(created.runDir, `handoff/${expert}.json`, JSON.stringify(handoff(expert, findings), null, 2))
   }
 }
 
-function writeHandoff(runDir, pass, findings) {
-  mkdirSync(join(runDir, 'handoff'), { recursive: true })
-  writeFileSync(join(runDir, 'handoff', `${pass}.json`), handoff(pass, findings))
-}
+test('builds a complete module report with no score or gate', () => {
+  const root = initRepo()
+  try {
+    write(root, 'src/a.js', 'export function add(a, b) {\n  return a - b\n}\n')
+    const created = makeScope(root, ['correctness', 'security', 'reliability', 'maintainability'])
+    writeHandoffs(created, {
+      correctness: [sampleFinding('correctness', { title: '加法写成了减法' })],
+      security: [sampleFinding('security', {
+        section: 'injection',
+        category: 'injection',
+        severity: 'critical',
+        title: '查询字符串拼接',
+      })],
+      reliability: [],
+      maintainability: [sampleFinding('maintainability', {
+        section: 'simplify',
+        category: 'complexity',
+        severity: 'medium',
+        title: '重复分支',
+        kind: 'plan',
+      })],
+    })
 
-const critical = {
-  ...sampleFinding,
-  category: 'authz',
-  severity: 'critical',
-  title: '缺少对象级鉴权',
-  file: 'src/auth.js',
-  line: 10,
-  ruleId: 'SEC-authz',
-  evidence: '10: router.delete("/:id", handler) // 未校验资源归属',
-}
+    const { report, reportJsonPath, latestMarkdownPath } = buildReport({
+      root,
+      runDir: created.runDir,
+      scope: created.scope,
+      config: { maxFindingsPerPass: 12 },
+    })
 
-test('buildReport normalizes, scores, and gates a full run', (t) => {
-  const root = tempDir()
-  t.after(() => cleanup(root))
-  const passes = PASS_LIST.map((pass) => pass.key)
-  const { runDir, scope } = makeScope(root, passes)
-  for (const pass of passes) writeHandoff(runDir, pass, [])
-  writeHandoff(runDir, 'review', [
-    sampleFinding,
-    { ...sampleFinding, title: '缺少证据的严重项', severity: 'critical', evidence: '' },
-  ])
-  writeHandoff(runDir, 'safety', [critical])
-
-  const { report, reportJsonPath, latestMarkdownPath } = buildReport({
-    root,
-    runDir,
-    scope,
-    config: DEFAULT_CONFIG,
-  })
-
-  assert.equal(report.coverage.full, true)
-  assert.equal(report.coverage.valid, 7)
-  assert.equal(report.findings.length, 3)
-  assert.equal(report.counts.bySeverity.critical, 2)
-  assert.equal(report.counts.lowConfidence, 1)
-  // 10 (high) + 25 (critical) = 35; the evidence-free critical is uncounted.
-  assert.equal(report.score.value, 65)
-  assert.equal(report.score.grade, 'D')
-  assert.equal(report.gate.status, 'fail')
-  assert.equal(report.gate.code, 1)
-  assert.equal(report.gate.newCritical, 1)
-  assert.equal(reportJsonPath, join(runDir, 'report.json'))
-  assert.match(report.summary, /严重|高风险|65/)
-  assert.match(reportJsonPath, /report\.json$/)
-  assert.match(latestMarkdownPath, /latest\.md$/)
+    assert.equal(report.schemaVersion, 2)
+    assert.equal(report.coverage.complete, true)
+    assert.equal(report.coverage.full, false)
+    assert.deepEqual(report.coverage.expected, ['correctness', 'security', 'reliability', 'maintainability'])
+    assert.equal(report.counts.total, 3)
+    assert.equal(report.counts.direct, 2)
+    assert.equal(report.counts.plan, 1)
+    assert.equal(report.counts.bySeverity.critical, 1)
+    assert.equal(report.executive, undefined)
+    assert.equal(report.score, undefined)
+    assert.equal(report.gate, undefined)
+    assert.ok(report.findings.every((finding) => /^(COR|SEC|MNT)-[A-F0-9]{5}$/u.test(finding.id)))
+    assert.ok(report.modules.some((module) => module.module === 'src'))
+    assert.ok(report.fixOrder.length >= 1)
+    assert.ok(existsSync(reportJsonPath))
+    assert.ok(existsSync(latestMarkdownPath))
+    assert.ok(existsSync(join(root, '.logistics', 'latest.json')))
+    assert.ok(readLatestReport(root))
+  } finally {
+    cleanup(root)
+  }
 })
 
-test('acceptBaseline makes existing findings non-new and clears the gate', (t) => {
-  const root = tempDir()
-  t.after(() => cleanup(root))
-  const passes = PASS_LIST.map((pass) => pass.key)
-  const { runDir, scope } = makeScope(root, passes)
-  for (const pass of passes) writeHandoff(runDir, pass, [])
-  writeHandoff(runDir, 'safety', [critical])
+test('missing and invalid handoffs make coverage incomplete and do not update latest', () => {
+  const root = initRepo()
+  try {
+    const created = makeScope(root, ['correctness', 'security'])
+    write(created.runDir, 'handoff/correctness.json', JSON.stringify(handoff('correctness', []), null, 2))
+    write(created.runDir, 'handoff/security.json', JSON.stringify({
+      schemaVersion: 2,
+      expert: 'security',
+      status: 'ok',
+      summary: '',
+      sections: {},
+      findings: [],
+    }, null, 2))
 
-  const first = buildReport({ root, runDir, scope, config: DEFAULT_CONFIG })
-  assert.equal(first.report.gate.code, 1)
-  acceptBaseline({ root, report: first.report })
+    const { report, latestMarkdownPath } = buildReport({
+      root,
+      runDir: created.runDir,
+      scope: created.scope,
+      config: { maxFindingsPerPass: 12 },
+    })
 
-  const second = buildReport({ root, runDir, scope, config: DEFAULT_CONFIG })
-  assert.equal(second.report.baseline.hasBaseline, true)
-  assert.equal(second.report.baseline.newCounts.critical, 0)
-  assert.equal(second.report.baseline.existingCount, 1)
-  assert.equal(second.report.gate.code, 0)
-  assert.equal(second.report.gate.status, 'pass')
+    assert.equal(report.coverage.complete, false)
+    assert.deepEqual(report.coverage.invalid, ['security'])
+    assert.equal(latestMarkdownPath, undefined)
+    assert.equal(existsSync(join(root, 'docs', 'logistics', 'latest.md')), false)
+    assert.ok(report.warnings.some((warning) => warning.includes('security')))
+  } finally {
+    cleanup(root)
+  }
 })
 
-test('single-pass and missing-handoff runs cannot pass the gate', (t) => {
-  const root = tempDir()
-  t.after(() => cleanup(root))
-  const { runDir, scope } = makeScope(root, ['review'])
-  writeHandoff(runDir, 'review', [sampleFinding])
+test('partial handoff is reported but never treated as complete', () => {
+  const root = initRepo()
+  try {
+    const created = makeScope(root, ['correctness', 'security'])
+    write(created.runDir, 'handoff/correctness.json', JSON.stringify(
+      handoff('correctness', [], { status: 'partial', notes: '只看了 src/a.js' }),
+      null,
+      2,
+    ))
+    write(created.runDir, 'handoff/security.json', JSON.stringify(handoff('security', []), null, 2))
 
-  const { report } = buildReport({ root, runDir, scope, config: DEFAULT_CONFIG })
-  assert.equal(report.coverage.complete, true)
-  assert.equal(report.coverage.full, false)
-  assert.equal(report.gate.code, 3)
-  assert.equal(report.gate.status, 'warn')
+    const { report, latestMarkdownPath } = buildReport({
+      root,
+      runDir: created.runDir,
+      scope: created.scope,
+      config: { maxFindingsPerPass: 12 },
+    })
 
-  const partialRoot = tempDir()
-  t.after(() => cleanup(partialRoot))
-  const partial = makeScope(partialRoot, PASS_LIST.map((pass) => pass.key))
-  writeHandoff(partial.runDir, 'review', [])
-  const missing = buildReport({ root: partialRoot, runDir: partial.runDir, scope: partial.scope, config: DEFAULT_CONFIG })
-  assert.equal(missing.report.coverage.missing.length, 6)
-  assert.equal(missing.report.coverage.complete, false)
-  assert.equal(missing.report.gate.code, 3)
-  assert.match(missing.report.warnings.join('\n'), /缺少/)
+    assert.equal(report.coverage.complete, false)
+    assert.deepEqual(report.coverage.partial, ['correctness'])
+    assert.equal(latestMarkdownPath, undefined)
+  } finally {
+    cleanup(root)
+  }
 })
 
-test('computeScore keeps the worst finding per file and title', () => {
-  const low = { ...sampleFinding, severity: 'low', confidence: 'high', counted: true }
-  const high = { ...sampleFinding, severity: 'high', confidence: 'high', counted: true, pass: 'safety' }
-  const score = computeScore([low, high])
-  assert.equal(score.deductions.length, 1)
-  assert.equal(score.deductions[0].severity, 'high')
-  assert.equal(score.value, 90)
+test('merges the same root cause reported by two experts', () => {
+  const root = initRepo()
+  try {
+    const created = makeScope(root, ['correctness', 'security'])
+    const base = {
+      title: '同一个空指针',
+      file: 'src/a.js',
+      line: 2,
+      evidence: '2: return a.b',
+      impact: '会崩溃。',
+      fix: { summary: '判空。', steps: ['加判空', '补测试', '验证'], files: ['src/a.js'], tests: [] },
+    }
+    writeHandoffs(created, {
+      correctness: [{ ...sampleFinding('correctness'), ...base, category: 'logic', section: 'logic' }],
+      security: [{ ...sampleFinding('security'), ...base, category: 'logic', section: 'exposure' }],
+    })
+
+    const { report } = buildReport({
+      root,
+      runDir: created.runDir,
+      scope: created.scope,
+      config: { maxFindingsPerPass: 12 },
+    })
+
+    assert.equal(report.findings.length, 1)
+    assert.equal(report.findings[0].experts.length, 2)
+  } finally {
+    cleanup(root)
+  }
 })
 
-test('invalid handoff JSON is reported as failed, not silently clean', (t) => {
-  const root = tempDir()
-  t.after(() => cleanup(root))
-  const info = makeScope(root, ['review'])
-  mkdirSync(join(info.runDir, 'handoff'), { recursive: true })
-  writeFileSync(join(info.runDir, 'handoff', 'review.json'), '{ not json')
+test('assigns stable line-independent IDs and keeps the worst severity', () => {
+  const root = initRepo()
+  try {
+    const one = makeScope(root, ['correctness'])
+    writeHandoffs(one, {
+      correctness: [sampleFinding('correctness', { title: '同一问题', severity: 'medium', line: 2 })],
+    })
+    const first = buildReport({ root, runDir: one.runDir, scope: one.scope, config: {} }).report
 
-  const { report } = buildReport({ root, runDir: info.runDir, scope: info.scope, config: DEFAULT_CONFIG })
-  assert.equal(report.passes[0].status, 'failed')
-  assert.equal(report.coverage.complete, false)
-  assert.match(report.passes[0].error, /JSON|解析/)
+    const two = makeScope(root, ['correctness'])
+    writeHandoffs(two, {
+      correctness: [sampleFinding('correctness', { title: '同一问题', severity: 'high', line: 20 })],
+    })
+    const second = buildReport({ root, runDir: two.runDir, scope: two.scope, config: {} }).report
+
+    assert.equal(first.findings[0].id, second.findings[0].id)
+    assert.equal(second.findings[0].severity, 'high')
+  } finally {
+    cleanup(root)
+  }
 })

@@ -1,7 +1,7 @@
 {
   "name": "dsh-logistics",
-  "version": "0.1.0",
-  "description": "Project logistics for DeepSeek Harness — slash-command dispatch to specialist review subagents, with health score, reports, and a baseline ratchet.",
+  "version": "0.2.0",
+  "description": "Project logistics for DeepSeek Harness — modular review reports from five specialist subagents, with direct fix selection and safe patch-based execution.",
   "type": "module",
   "main": "./lib/index.js",
   "exports": {
@@ -14,6 +14,8 @@
     "skills",
     "cordis.patch.yml",
     "README.md",
+    "ARCHITECTURE.md",
+    "MODULE-DECISION.md",
     "LICENSE",
     "CHANGELOG.md"
   ],
@@ -31,7 +33,8 @@
     "security",
     "testing",
     "cleanup",
-    "baseline",
+    "fix",
+    "modules",
     "subagents"
   ],
   "license": "MIT",

@@ -2,151 +2,142 @@
 
 **项目后勤，为 DeepSeek Harness 而生。**
 
-安装后获得一组 `/logi-*` 命令：一条命令完成范围收集、专家子代理调度、结果聚合、健康分与基线门禁。它不修改源码，只做只读审查与报告。
+安装后获得一组 `/logi-*` 命令：先做确定性的范围收集，再让专家子代理按模块审查，最后生成一份**按模块组织、可直接照着修**的中文报告。报告里没有健康分，也不做基线门禁；每个问题都有稳定的 ID，你可以挑自己关心的 ID 交给 `/logi-fix` 执行，或先 `--dry-run` 看方案。
 
-> 从 CodeCortexLoop（MIT，原仓库留存于 [master 分支](https://github.com/whitequeen306/dsh-logistics/tree/master)）迁移而来。命令、编排与报告格式已针对 DSH 重写；领域知识保留在 10 个 skill 中。
+> 从 CodeCortexLoop（MIT，原仓库留存于 [master 分支](https://github.com/whitequeen306/dsh-logistics/tree/master)）迁移而来。0.2.0 起，原来的 7 位专家收敛为 5 个模块，并删除评分、基线与门禁；设计记录见 [MODULE-DECISION.md](./MODULE-DECISION.md)。
 
 ## 它能做什么
 
-- **按风险花 token**：`/logi` 先看改动范围，再决定快速 / 标准 / 全量档。
-- **专家分工**：正确性、安全、测试、错误处理、性能、简化、清理，7 位专家各看各的，减少"什么都查一点"的泛泛而谈。
-- **证据优先**：问题必须有位置、证据、触发路径和影响；没有证据的严重问题会被降级。
-- **可比较**：健康分、JSON/Markdown 报告、按指纹比较的基线，适合在 PR 前后看趋势。
-- **DSH 原生**：命令由插件注册，专家通过内置 `subagent` 工具拉起；不依赖外部脚本运行时，也没有 npm 依赖。
+- **五个模块，按后果分工**：正确性、安全、健壮性（错误处理 + 测试）、可维护性（简化 + 清理）、性能（可选）。默认只跑前四个，性能按需开启。
+- **按模块出报告**：报告按 `src`、`packages/api`、`apps/web` 等模块聚合，直接回答“哪个模块有什么问题、怎么修”。
+- **证据优先**：问题必须有位置、证据、触发路径和影响；没有证据的严重问题会被降级，不会靠“感觉”报高优。
+- **可选择修复**：报告中的 `direct` 项可以用 `/logi-fix <ID>` 交给一个串行 fixer；默认先出计划，真正执行前要求干净工作区、文件白名单、测试与失败回滚。
+- **DSH 原生**：命令由插件注册，专家通过内置 `subagent` 工具拉起；纯 ESM、零运行时依赖，不 import `@deepseek-ai/*`。
 
 ## 安装
 
 要求：DeepSeek Harness `0.2.1` 或更新版本，Node.js `^22.19.0 || >=24.0.0`。
 
-**DSH Desktop**：桌面版独占管理 `desktop` profile，命令行 `dsh plugin --profile desktop add` 会被拒绝。请打开 **Settings → Plugins → 安装第三方插件（Add plugin）**，填入本机绝对路径：
+**DSH Desktop**：桌面版独占管理 `desktop` profile，命令行 `dsh plugin --profile desktop add` 会被拒绝。请打开 **Settings → Plugins → 安装第三方插件（Add plugin）**，填入本机**插件目录**的绝对路径：
 
 ```text
 C:\path\to\dsh-logistics
 ```
 
-安装完成后刷新 / 重启应用，输入 `/logi` 应能看到命令补全。插件的本地目录可直接作为安装源，无需先发布到 npm。
+安装完成后刷新或重启应用，输入 `/logi` 应能看到命令补全。
 
 **CLI / 非桌面 profile**：
 
 ```bash
 dsh plugin --profile web add "C:/path/to/dsh-logistics"
-# 或发布到 npm 后
-dsh plugin add dsh-logistics
-```
-
-检查配置：
-
-```bash
 dsh --profile web --dump-config | grep -A2 dsh-logistics
 ```
 
-> 桌面版如果拒绝安装，请确认填的是**目录**而不是 `package.json`，并确认目录里存在 `cordis.patch.yml` 与 `lib/index.js`。
+> 0.2.0 目前建议从源码目录安装。npm 上的 `dsh-logistics@0.1.0` 是旧的 7 专家/评分版本，不要与 0.2.0 的文档混用。
 
 ## 命令
 
 | 命令 | 作用 |
 | --- | --- |
-| `/logi` | 自动档：评估风险，选择快速 / 标准 / 全量，并调度专家 |
-| `/logi-quick` | 快速档（3 位）：正确性、安全、错误处理 |
-| `/logi-standard` | 标准档（5 位）：快速档 + 测试、清理 |
-| `/logi-full` | 全量档（7 位）：全部专家 |
-| `/logi-review` | 单专家：正确性审查 |
-| `/logi-safety` | 单专家：安全审查 |
-| `/logi-tests` | 单专家：测试审查 |
-| `/logi-errors` | 单专家：错误处理审查 |
-| `/logi-perf` | 单专家：性能审查 |
-| `/logi-simplify` | 单专家：简化审查（保持行为不变） |
-| `/logi-cleanup` | 单专家：死代码、未用依赖、孤立文件 |
-| `/logi-gate` | 基线门禁：检查最近报告；`/logi-gate accept` 接受最近一次全量报告为基线 |
+| `/logi` | 默认四模块：正确性、安全、健壮性、可维护性 |
+| `/logi-correctness` | 只跑正确性模块 |
+| `/logi-security` | 只跑安全模块 |
+| `/logi-reliability` | 只跑健壮性模块（错误处理 + 测试） |
+| `/logi-maintainability` | 只跑可维护性模块（简化 + 清理） |
+| `/logi-perf` | 只跑性能模块（可选，默认不跑） |
+| `/logi-fix` | 查看最近报告中的可执行修复项 |
+| `/logi-fix <ID...>` | 执行指定 `direct` 修复项 |
+| `/logi-fix --dry-run <ID...>` | 只出修复计划，不改源码 |
 
-所有命令都支持在命令后补充关注点，例如：
+所有审查命令都支持在命令后补充关注点：
 
 ```text
-/logi-standard 只关注支付流程和退款状态机
+/logi 只关注支付流程和退款状态机
 ```
 
-单专家命令与档位命令共用同一套报告 / 基线体系，但单专家报告会被标记为**部分覆盖**，门禁退出码为 `3`（不确定），不会误判为通过。
+`/logi-fix` 不支持 `--all`：一次只修你明确选择的 ID。`plan` 类型（需要设计决策）和性能项不会被自动执行。
 
 ## 工作方式
 
 ```text
-/logi-* 命令
+/logi-*
    │
    ├─ 1. 确定性预检（插件内 JS）
    │     git 状态 / diff / 最近提交、忽略规则、文件清单、
-   │     测试命令、风险等级、档位与专家列表
+   │     测试命令、模块归属
    │     → .logistics/runs/<runId>/scope.json
    │
    ├─ 2. 注入派发消息（agent.followup）
-   │     父代理加载 logi-core / logi-pipeline skill，
-   │     用内置 subagent 工具为每位专家启动一个只读子代理
+   │     父代理加载 logi-core / logi-pipeline，
+   │     用内置 subagent 工具为每个模块启动一个只读子代理
    │
    ├─ 3. 子代理写 handoff
-   │     .logistics/runs/<runId>/handoff/<pass>.json
+   │     .logistics/runs/<runId>/handoff/<expert>.json
    │
    └─ 4. 聚合（插件内 CLI）
-         归一化、去重、计分、基线比较、门禁
-         → .logistics/runs/<runId>/report.{json,md}
-         → docs/logistics/latest.md
+         归一化、跨专家去重、稳定 ID、模块分组、修复顺序
+         → report.{json,md}
+         → docs/logistics/latest.md（仅完整覆盖时更新）
          → .logistics/latest.json
 ```
 
-- 父代理最多同时派发 **4 个**子代理；一轮结束后等完成通知，再检查 handoff。
-- 缺失或非法 handoff 会重试一次；第二次失败则写 `status: "failed"`，不会被当成"没问题"。
+- 父代理每条消息最多派发 **4 个**子代理；一轮结束后等完成通知，再继续下一波。
+- 缺失或非法 handoff 会重试一次；第二次失败写 `status: "failed"`，不会被当成“没问题”。
 - 子代理只读：不编辑源码、不提交、不删除、不嵌套子代理。
-- 若当前 DSH 没有可用的 `subagent` 工具，会退化为单会话的 `logi-review` + `logi-safety` 两段式审查，并明确说明是降级结果。
+- 没有 `subagent` 工具时**不会**退化成父代理自己审：直接报告限制并停止，避免把单会话猜测包装成专家结论。
 
 ## 报告
-
-每次运行写入：
 
 ```text
 .logistics/
   runs/<runId>/
     scope.json
-    handoff/<pass>.json
+    handoff/<expert>.json
     report.json
     report.md
   latest.json
-  baseline.json          # /logi-gate accept 后出现
-docs/logistics/latest.md # 最近一次报告，便于提交 / 分享
+  fixes/<fixRunId>/
+    selection.json
+    fix.json
+    fix-reverted.patch        # 仅失败回滚时出现
+docs/logistics/latest.md      # 最近一次完整报告
 ```
 
-报告包含：范围概览、专家完成情况、按严重度排序的问题、健康分、基线新增 / 已修复 / 剩余、门禁结论。`report.json` 是稳定接口，适合接 CI 或其他工具。
+报告包含：
 
-建议在目标项目里忽略运行目录（保留 `baseline.json` 以便团队共享基线）：
+- **模块总览**：模块、涉及专家、各严重度数量、最严重问题。
+- **按模块分组的问题**：标题、位置、证据、影响、修复步骤、涉及文件、建议测试。
+- **未覆盖维度**：哪些模块没跑、handoff 失败 / 缺失 / 部分完成。
+- **建议修复顺序**：同文件合并、根因先行、可维护性单独批次、性能单独批次。
 
-```gitignore
-.logistics/runs/
-.logistics/latest.json
-```
+每个 finding 有稳定 ID，例如 `COR-4F2A1`。ID 由 `专家 | 类别 | 文件 | 归一化标题` 计算，**不含行号**；代码移动不会让同一个问题换 ID。跨专家报告同一根因时只保留一条，并记录涉及的专家。
 
-### 健康分
+`report.json` 的 schemaVersion 为 `2`，是稳定接口；`docs/logistics/latest.md` 与 `.logistics/latest.json` 只在**完整覆盖**时更新，部分覆盖会保留上一份完整报告。
 
-从 100 分开始，按**去重后的最严重问题**扣分：
+### 为什么没有健康分
 
-| 严重度 | 扣分 |
-| --- | ---: |
-| Critical | 25 |
-| High | 10 |
-| Medium | 4 |
-| Low | 1 |
-| Info | 0 |
+0.2.0 明确删除了评分、基线与门禁。不同模块的问题后果不同，用一个分数把它们相加会掩盖“安全阻断项”和“命名建议”的差别。报告改用：
 
-等级：A ≥ 90，B ≥ 80，C ≥ 70，D ≥ 60，F < 60。分数最低为 0。
+- 严重度：`critical / high / medium / low / info`
+- 可执行性：`direct`（机械、行为保持、可验证）或 `plan`（需要设计决策）
+- 覆盖状态：完整 / 部分 / 失败 / 缺失
 
-### 基线门禁
+## 修复
 
-`/logi-gate` 不启动子代理，只比较最近报告与 `.logistics/baseline.json`：
+`/logi-fix` 是唯一的写操作入口，默认安全优先：
 
-| 退出码 | 含义 |
-| --- | --- |
-| `0` | 通过：没有新增 Critical；未超过配置的高危 / 分数下降阈值 |
-| `1` | 新增 Critical |
-| `2` | 新增 High（`gate.failOnNewHigh: true` 时），或分数下降超过 `maxScoreDrop` |
-| `3` | 覆盖不完整 / 报告过期 / 无基线，结论不确定 |
+1. **列出**：不带参数时，只列出最近完整报告中的 `direct` ID，不改任何文件。
+2. **计划**：`--dry-run <ID...>` 输出每个 ID 的位置、白名单文件、测试和步骤。
+3. **执行**：带 ID 且不带 `--dry-run` 时，要求：
+   - 最近报告 `schemaVersion = 2` 且覆盖完整；
+   - git 仓库、工作区没有未提交的源码改动；
+   - 报告生成后 HEAD 未变化（否则证据可能过期）；
+   - ID 存在、`kind = direct`、不属于性能模块。
+4. 通过后创建 `.logistics/fixes/<fixRunId>/selection.json`，派发**一个** fixer 子代理。
+5. fixer 只改白名单文件，跑 `scope.testCommand`；失败时保存 `fix-reverted.patch`、回滚该组改动，并在 `fix.json` 标记 `failed` / `partial`。
+6. 不会自动 commit、push、安装依赖或联网。
 
-`/logi-gate accept` 只接受**覆盖完整**且对应代码状态未变化的最近报告；之后旧问题不再算"新增"。指纹刻意不包含行号：`sha1(pass | category | file | ruleId | 归一化标题)`，这样 rebase / 移位不会把旧债变成新债。
+> 审查阶段仍然只读。`/logi-fix` 不会复用审查子代理，也不会让多个专家并行改代码。
 
 ## 配置
 
@@ -158,43 +149,54 @@ docs/logistics/latest.md # 最近一次报告，便于提交 / 分享
   "maxFiles": 400,
   "maxFindingsPerPass": 12,
   "includeLastCommitWhenClean": true,
-  "gate": {
-    "failOnNewHigh": false,
-    "maxScoreDrop": 5
+  "testCommand": "pnpm test",
+  "modules": {
+    "packages/api": "API 服务",
+    "apps/web": "Web 前端"
   }
 }
 ```
 
-- `ignore` 会追加在内置忽略规则之后（`node_modules`、`dist`、锁文件等始终忽略）。
+- `ignore` 会追加在内置忽略规则之后（`node_modules`、`dist`、锁文件、`.logistics`、`docs/logistics` 等始终忽略）。
 - `maxFiles`：送入审查的文件上限；超出时会截断并给出警告。
 - `maxFindingsPerPass`：单个专家最多保留的问题数。
 - `includeLastCommitWhenClean`：工作区干净时审查最近一次提交，而不是直接空跑。
-- `gate.failOnNewHigh`：是否把"新增 High"也判为失败。
-- `gate.maxScoreDrop`：允许的分数下降幅度；仅在全量基线与全量报告之间比较。
+- `testCommand`：fixer 使用的测试命令；为空时自动从 `package.json` / `vitest` / `jest` / `pytest` / `go` / `cargo` 推断。
+- `modules`：模块显示名覆盖；不配置时按 `packages/*`、`apps/*`、去掉 `src`/`lib`/`app` 前缀后的首段推导。
 
 配置值非法时会回退到默认值并给出警告，不会让命令直接崩掉。
 
 ## 适用边界
 
-- **只读**：这是审查工具，不会自动修复、删除死代码或升级依赖；清理建议需要人工确认。
+- **审查只读**：`/logi-*` 审查命令不会改源码；只有 `/logi-fix` 且显式给 ID 时才写文件。
 - **不是编译器**：静态分析基于改动上下文和专家判断；跨仓库、运行时才暴露的问题可能漏报。
-- **部分覆盖不等于通过**：单专家 / 快速档报告的门禁结论是"不确定"。
+- **部分覆盖不等于通过**：单模块报告只代表该模块，报告会明确标出未覆盖维度。
 - **大改动**：默认最多 400 个文件、单专家 12 条问题；超大 PR 建议拆分或提高上限后重跑。
+- **性能需要证据**：`/logi-perf` 只报热路径，且性能项永远是 `plan`，不会自动改。
 
 ## 开发
 
 ```bash
-npm test          # node --test，零依赖
+npm test          # node --test，42 个测试
 npm run check     # 语法检查 + 全部测试
 ```
 
 目录：
 
 ```text
-lib/              # 插件入口、命令、范围、报告、基线、派发
-lib/cli/          # status / aggregate / gate 离线 CLI
-skills/           # 10 个 skill：core、pipeline、7 位专家、gate
-test/             # node:test 测试与临时 git 仓库夹具
+lib/
+  index.js        # DSH 入口：注册 8 个 skill、7 个命令
+  commands.js     # 命令 handler：scope、派发、/logi-fix
+  scope.js        # git/文件范围、忽略、测试命令、scope.json
+  dispatch.js     # 父代理派发 prompt、status/aggregate 命令
+  report.js       # handoff 校验、去重、模块报告、Markdown
+  findings.js     # 归一化、稳定 ID、模块归属、排序
+  config.js       # .logistics/config.json
+  constants.js    # 5 个模块、severity、默认配置
+  util.js         # 零依赖工具
+  cli/            # status.mjs / aggregate.mjs
+skills/           # core、pipeline、5 个专家、fix
+test/             # node:test 与临时 git 仓库夹具
 cordis.patch.yml  # DSH bundle patch
 ```
 
@@ -202,10 +204,11 @@ cordis.patch.yml  # DSH bundle patch
 
 - **不 import `@deepseek-ai/*`**：官方包由 DSH 宿主提供，插件不重复安装，避免版本线冲突。
 - **命令只做确定性工作**：收集范围、建 run、注入派发消息；LLM 编排交给 skill + `subagent`，这样 UI 能看到子代理，失败也可见。
-- **聚合放在插件里**：计分、去重、基线、报告格式不依赖模型发挥，保证可重复。
+- **聚合放在插件里**：去重、ID、模块分组、报告格式不依赖模型发挥，保证可重复。
+- **单包 + 清晰分层**：当前规模不值得拆成多个 npm 包；模块边界体现在 `lib/`、`skills/` 和文档中的执行方法上。
 
 ## 许可
 
 MIT。见 [LICENSE](./LICENSE)。
 
-原始项目 [CodeCortexLoop（原仓库 master 分支）](https://github.com/whitequeen306/dsh-logistics/tree/master) 亦为 MIT；本项目的命令命名、编排协议、报告格式与 DSH 集成已重写，领域检查清单与评分思想来自原项目。
+原始项目 [CodeCortexLoop（原仓库 master 分支）](https://github.com/whitequeen306/dsh-logistics/tree/master) 亦为 MIT；本项目的命令命名、编排协议、报告格式与 DSH 集成已重写，领域检查清单与模块划分参考原项目。

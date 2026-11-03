@@ -2,54 +2,75 @@ import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import test from 'node:test'
-import { PASS_LIST } from '../lib/constants.js'
+import { fileURLToPath } from 'node:url'
+import { EXPERT_LIST } from '../lib/constants.js'
 import { parseSkillFile } from '../lib/util.js'
 
-const root = new URL('..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
+const root = fileURLToPath(new URL('..', import.meta.url))
 const skillsDir = join(root, 'skills')
 
-const expected = [
-  'logi-core',
-  'logi-pipeline',
-  ...PASS_LIST.map((pass) => pass.skill),
-  'logi-gate',
-].sort()
+function readSkill(name) {
+  return parseSkillFile(readFileSync(join(skillsDir, name, 'SKILL.md'), 'utf8'), name)
+}
 
-test('all expected skills exist with valid frontmatter', () => {
+test('ships exactly the eight 0.2.0 skills', () => {
   const dirs = readdirSync(skillsDir, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
     .sort()
-  assert.deepEqual(dirs, expected)
+  assert.deepEqual(dirs, [
+    'logi-core',
+    'logi-correctness',
+    'logi-fix',
+    'logi-maintainability',
+    'logi-perf',
+    'logi-pipeline',
+    'logi-reliability',
+    'logi-security',
+  ])
+})
 
-  for (const name of dirs) {
-    const file = join(skillsDir, name, 'SKILL.md')
-    const parsed = parseSkillFile(readFileSync(file, 'utf8'), name)
-    assert.equal(parsed.name, name, `${name} frontmatter name`)
-    assert.ok(parsed.description.length > 20, `${name} description should be meaningful`)
-    assert.ok(parsed.description.length <= 1024, `${name} description is too long`)
-    assert.ok(parsed.content.length > 500, `${name} content is too short`)
-    assert.match(parsed.content, /^# /m, `${name} needs a heading`)
+test('every skill has matching frontmatter and substantial content', () => {
+  for (const entry of readdirSync(skillsDir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue
+    const parsed = readSkill(entry.name)
+    assert.equal(parsed.name, entry.name)
+    assert.ok(parsed.description.length > 20, entry.name)
+    assert.ok(parsed.content.length > 500, entry.name)
   }
 })
 
-test('specialist skills are referenced by PASS_LIST', () => {
-  for (const pass of PASS_LIST) {
-    assert.ok(pass.skill.startsWith('logi-'))
-    assert.ok(expected.includes(pass.skill))
+test('specialist skills match the five expert keys and declare sections', () => {
+  for (const expert of EXPERT_LIST) {
+    const parsed = readSkill(expert.skill)
+    assert.equal(parsed.name, expert.skill)
+    assert.match(parsed.content, new RegExp(`section`, 'iu'))
+    for (const section of expert.sections) {
+      assert.match(parsed.content, new RegExp(section, 'iu'), `${expert.skill}: ${section}`)
+    }
   }
 })
 
-test('core skill contains the handoff contract and child template', () => {
-  const content = readFileSync(join(skillsDir, 'logi-core', 'SKILL.md'), 'utf8')
-  for (const token of ['schemaVersion', 'findings', '"status": "failed"', 'Child task template', 'deferred']) {
-    assert.ok(content.includes(token), `logi-core should mention ${token}`)
+test('core contract documents schemaVersion 2, sections, kinds, and the child template', () => {
+  const content = readSkill('logi-core').content
+  for (const token of ['schemaVersion', 'sections', 'direct', 'plan', 'Child task template', 'fix']) {
+    assert.match(content, new RegExp(token, 'iu'), token)
   }
+  assert.match(content, /kind[^\n]*direct/iu)
+  assert.match(content, /summary/iu)
 })
 
-test('pipeline skill enforces waves, retry, and aggregate', () => {
-  const content = readFileSync(join(skillsDir, 'logi-pipeline', 'SKILL.md'), 'utf8')
-  for (const token of ['4 subagents', 'retry', 'aggregate', 'coverage.full', 'status']) {
-    assert.ok(content.includes(token), `logi-pipeline should mention ${token}`)
+test('pipeline documents wave dispatch, status, aggregate, and hard stop', () => {
+  const content = readSkill('logi-pipeline').content
+  for (const token of ['4', 'status.mjs', 'aggregate.mjs', 'ready', 'subagent', 'No degraded']) {
+    assert.match(content, new RegExp(token, 'iu'), token)
+  }
+  assert.doesNotMatch(content, /同时让.*7.*专家/u)
+})
+
+test('fix skill documents selection, whitelist, tests, rollback, and no commit', () => {
+  const content = readSkill('logi-fix').content
+  for (const token of ['selection.json', 'fix.json', 'fix-reverted.patch', 'whitelist', 'test', 'commit']) {
+    assert.match(content, new RegExp(token, 'iu'), token)
   }
 })

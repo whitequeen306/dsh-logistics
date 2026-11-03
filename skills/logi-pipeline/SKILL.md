@@ -1,170 +1,136 @@
 ---
 name: logi-pipeline
-description: Orchestration protocol for DSH Logistics multi-expert runs — wave-based subagent dispatch, handoff verification, retry policy, aggregation, and the Chinese final summary. Load with logi-core.
+description: Orchestration protocol for DSH Logistics multi-expert runs — wave-based subagent dispatch, handoff verification, retry policy, module aggregation, and the Chinese final summary. Load with logi-core.
 ---
 
-# DSH Logistics — Pipeline Orchestrator
+# DSH Logistics — Pipeline Conduct
 
-You are the **conductor**, not an analyst. You do not review code yourself. You dispatch
-one specialist subagent per pass, verify their handoffs, then let the bundled scripts
-score and render the report.
+You are the conductor, not an expert. Do not review code yourself and do not "help" by
+adding findings. Your job is to dispatch the requested experts, verify their handoffs,
+aggregate deterministically, and report.
 
-The command that woke you already created a run directory, wrote `scope.json`, and put
-the exact status/aggregate commands in the dispatch message. Use those commands
-verbatim; do not invent paths.
+Load only `logi-core` and `logi-pipeline` before dispatching. Do **not** load specialist
+skills in the parent — the children load them.
 
-## Inputs from the dispatch
+## Inputs
 
-- Workspace root and run directory (absolute).
-- Resolved tier and the ordered pass list.
-- A status command and an aggregate command.
-- Scope digest: file count, risk level, languages, recent commit, test command.
+The dispatch message contains:
 
-If the dispatch is missing a path or a command, do not guess. Read `scope.json` from the
-run directory; its `output` object contains `handoffDir`, `reportJson`,
-`latestMarkdown`, and `baseline`.
+- command (`/logi` or another report command),
+- absolute `root`, `runDir`, `scope.json`, `handoffDir`, `pluginRoot`,
+- expert list and titles,
+- aggregate command.
 
-## Protocol
+Read `<runDir>/scope.json` for the source mode, file list, notes, and `testCommand`.
 
-### 1. Load the contract
+## Dispatch protocol
 
-Call the `skill` tool for `logi-core`, then `logi-pipeline`. Do not load every
-specialist skill into your own context — the children load their own.
+### 1. Build one child prompt per expert
 
-### 2. Read the scope
+Use the Child task template in `logi-core`. Fill:
 
-Read `<runDir>/scope.json`. Confirm:
+- `<expert>` = title (`正确性审查` …)
+- `<expertKey>` = key (`correctness` …)
+- `<sections>` = the expert's sections from `scope.expertDetails`
+- `<skill>` = the expert's skill (`logi-correctness` …)
+- absolute paths and `notes`.
 
-- `passes` matches the dispatch (the run's resolved list).
-- `source` is `working-tree`, `last-commit`, or `filesystem`.
-- `stats.analyzedFiles > 0`.
+The prompt must be self-contained: the child does not see this conversation.
 
-If `analyzedFiles` is 0, stop and report that there is nothing to review; do not spawn
-children.
+### 2. Spawn in waves, at most 4 per assistant message
 
-### 3. Plan waves
-
-Spawn at most **4 subagents per assistant message**. For the full tier that means a
-first wave of 4 and a second wave of 3; for smaller tiers one wave is enough.
-
-Each pass gets exactly one child. Never spawn two children for the same pass. If a
-previous child for that pass is still running, wait for its notification instead of
-duplicating it.
-
-### 4. Compose each child prompt
-
-Use the **Child task template** in `logi-core`, filled with:
-
-- the pass key, title, expert name, specialist skill name, and rule prefix;
-- absolute workspace root, run directory, `scope.json`, and handoff path;
-- the user's `notes` (or `none`);
-- the exact source mode so the child knows whether to use `git diff`, `git show`, or
-  direct file reads.
-
-The prompt must be self-contained: the child does not see this conversation, the
-dispatch, or the scope digest. Include the read-only constraint, the evidence gate,
-the JSON schema, the 12-finding cap, and the Chinese output requirement.
-
-### 5. Dispatch and yield
-
-Call the `subagent` tool with:
-
-- `description: "logi-<pass>"`
-- `prompt`: the filled template
-
-Do **not** pass `provider`: the subagent backend (spawn or fork) is fixed by the DSH
-composition, not by this prompt. Do not pass `agent_preset` either unless the active
-profile explicitly allows it.
-
-After sending the wave, **end your turn** with one short Chinese line, for example:
-`已派发 4 位专家（正确性、安全、测试、错误处理），等待完成通知。`
-
-When completion notices arrive, first check whether any planned pass has **no child
-yet**. If so, send the next wave (up to 4) and end the turn again. Only after every
-planned pass has been dispatched do you move on to handoff verification; never treat
-an unspawned pass as a missing handoff.
-
-Do not fabricate results, do not busy-poll with sleeps, and do not start the aggregate
-before the children are terminal. Completion notices wake you; that is the signal to
-continue.
-
-### 6. Verify handoffs
-
-When notifications arrive, run the status command from the dispatch. It prints one line
-per expected pass and a final `ready: true|false`.
-
-- `ok` — leave it alone.
-- `missing` or `invalid` — retry that pass **once** with a sharper prompt that says
-  "write the handoff file first, then answer". Do not retry a pass that is already
-  `ok`.
-- `failed` — terminal; do not retry more than once. Keep the failure visible.
-- A child's final message may contain valid handoff JSON even if no file was written.
-  If and only if it is valid JSON matching the schema, write it to the handoff path
-  yourself. Never invent or "clean up" findings.
-- After the second failure, write the failed handoff yourself:
+Call the native `subagent` tool with exactly:
 
 ```json
-{"schemaVersion":1,"pass":"<pass>","status":"failed","summary":"","findings":[],"error":"<short reason>"}
+{ "description": "logi-<expert>", "prompt": "<filled child prompt>" }
 ```
 
-Do not let one broken child block the run. A partial report with an honest coverage
-line is the correct outcome.
+Do **not** pass `provider`, `model`, or `agent_preset`. Do not pass a `cwd` unless the
+scope root differs from the current workspace; prefer the default. One child per
+expert; never merge two experts into one child.
 
-### 7. Aggregate
+After the wave, **end your turn**. Child completion notices arrive as new turns. Do not
+busy-wait, do not poll, do not claim success before the notices arrive.
 
-When `status` reports `ready: true` (failed counts as terminal), run the aggregate
-command from the dispatch verbatim. It writes:
+### 3. Continue waves
 
-- `<runDir>/report.json`
-- `<runDir>/report.md`
-- `docs/logistics/latest.md`
-- `.logistics/latest.json`
+When completions arrive, check which planned experts have no child yet. If any remain,
+spawn the next wave (max 4) and end the turn again. Only after **every planned expert
+has been spawned** may you run the status check.
 
-Then read `docs/logistics/latest.md` and, if needed, the summary fields of
-`report.json`. Do not re-run the specialists or hand-edit the report.
+### 4. Verify handoffs
 
-### 8. Reply in Chinese
+Run the status command from the dispatch message, for example:
 
-Use this shape, at most ~12 lines:
+```bash
+"<node>" "<pluginRoot>/lib/cli/status.mjs" --run "<runDir>" --expect correctness,security
+```
+
+- `ready: true` means every expected handoff is present and structurally valid.
+- `missing` or `invalid`: re-send **one** retry prompt to the same expert, telling it
+  to write the file. Only one retry.
+- Still missing/invalid after the retry: write the failed handoff yourself:
+
+```json
+{
+  "schemaVersion": 2,
+  "expert": "<expert>",
+  "status": "failed",
+  "summary": "",
+  "sections": {},
+  "findings": [],
+  "error": "子代理未写出有效 handoff（重试一次后仍失败）"
+}
+```
+
+- `failed` is terminal; do not retry it again.
+- If a child returned valid JSON in its message but could not write the file, save that
+  JSON as the handoff instead of marking it failed. It must still pass the schema.
+- Never invent findings to fill a missing expert.
+
+### 5. Aggregate
+
+Run the aggregate command exactly as given:
+
+```bash
+"<node>" "<pluginRoot>/lib/cli/aggregate.mjs" --run "<runDir>"
+```
+
+- Exit 0: complete report; `docs/logistics/latest.md` and `.logistics/latest.json` were
+  updated.
+- Exit 3: incomplete coverage. The run-local `report.md` still exists, but the shared
+  latest report was deliberately **not** overwritten. Report the incomplete coverage
+  honestly.
+- Exit 1: aggregation failed; show the error and the run directory.
+
+Then read the report that applies: `docs/logistics/latest.md` when exit 0, otherwise
+`<runDir>/report.md`.
+
+### 6. Reply in Chinese
+
+Use at most 10 lines:
 
 ```text
-后勤完成：健康分 82/100（B），门禁 warn（exit 3，覆盖 5/7）
-- 范围：12 个文件（+340/-120），风险 高
-- 新增：严重 0，高 1；存量 4；修复 2
-- 重点：src/a.ts:42 退款状态不一致；src/b.ts:88 缺少授权校验
-- 未完成：性能、简化（子代理失败）
-- 报告：docs/logistics/latest.md
+后勤完成 · <command> · <runId>
+覆盖：<completed>/<expected> 位专家（<缺失/失败项，或“完整”>）
+模块：<module>（严重 x / 高 x / 中 x），...
+最值得先看：<最多 3 条 finding，带 ID 和 file:line>
+可执行修复：<n> 个 direct；/logi-fix 查看
+报告：<absolute path>
 ```
 
-Rules:
+If coverage is incomplete, say so in the first two lines and do not describe the run as
+clean. If there are no findings, say "本次请求的范围内未发现可证实的问题" rather than
+claiming the code is correct.
 
-- Lead with the score and gate, not with a list of every finding.
-- Name at most 3 findings, each with `path:line` and a short title.
-- State coverage honestly. If `coverage.full` is false, say the report is partial and
-  the gate is inconclusive (exit 3), not "passed".
-- Mention failed/missing experts and the report path.
-- Do not paste the whole report. Do not call `present`.
+## Hard rules
 
-## Failure and fallback
-
-- **A child times out or errors** — retry once, then write a failed handoff and
-  aggregate. Never leave a pass silently absent.
-- **The `subagent` tool is unavailable** — do a degraded single-session run: load the
-  specialist skills for the highest-risk passes only (at minimum `logi-review` and
-  `logi-safety`), analyze them one at a time, write their handoffs, then aggregate.
-  Mark the skipped passes with failed handoffs whose error says
-  `subagent tool unavailable`; tell the user the run is degraded.
-- **The aggregate command fails** — report the exact stderr, keep the handoffs, and do
-  not fabricate a score. The user can re-run `/logi-gate` or aggregate after fixing
-  the cause.
-- **Interrupted by the user** — stop spawning; do not write a fake success. Existing
-  handoffs remain valid for a later aggregate.
-
-## Hard constraints
-
-- Read-only: no source edits, no commits, no deletions.
-- One child per pass; max 4 dispatches per message.
-- Do not analyze the code yourself; if you catch something, put it in your final note
-  as an observation, not as a finding.
-- Ignore `.logistics/` and `docs/logistics/` when reviewing.
-- No `present`, no nested orchestration, no asking the user mid-run.
+- **No degraded self-review.** If the `subagent` tool is unavailable or fails to start,
+  stop and report the limitation. Do not review the code yourself as a fallback.
+- **No nested agents.** Children are forbidden from spawning subagents.
+- **No source edits.** The parent and children are read-only for report commands.
+- **No score/gate language.** This version has no health score, baseline, or gate.
+- **No `present`.** Report the file path instead.
+- Ignore `.logistics/` and `docs/logistics/` when inspecting the repository.
+- If the user asks a follow-up about a finding, read the report and answer from the
+  evidence; do not re-run the whole pipeline unless asked.
