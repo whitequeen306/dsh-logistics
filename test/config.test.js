@@ -17,6 +17,8 @@ test('default config always ignores dependency and build directories', (t) => {
   assert.equal(found, false)
   assert.ok(config.ignore.includes('node_modules/**'))
   assert.ok(config.ignore.includes('dist/**'))
+  assert.ok(config.ignore.includes('.logistics/**'))
+  assert.ok(config.ignore.includes('docs/logistics/**'))
   assert.equal(config.maxFiles, 400)
 })
 
