@@ -69,9 +69,12 @@ the JSON schema, the 12-finding cap, and the Chinese output requirement.
 
 Call the `subagent` tool with:
 
-- `provider: "spawn"`
 - `description: "logi-<pass>"`
 - `prompt`: the filled template
+
+Do **not** pass `provider`: the subagent backend (spawn or fork) is fixed by the DSH
+composition, not by this prompt. Do not pass `agent_preset` either unless the active
+profile explicitly allows it.
 
 After sending the wave, **end your turn** with one short Chinese line, for example:
 `已派发 4 位专家（正确性、安全、测试、错误处理），等待完成通知。`

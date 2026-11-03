@@ -90,7 +90,8 @@ test('a single-expert command creates a partial run with one dispatch', async (t
   assert.equal(messages.length, 1)
   const text = messages[0].content[0].text
   assert.match(text, /只运行 \*\*正确性审查（review）\*\*/)
-  assert.match(text, /provider: `spawn`/)
+  assert.match(text, /不要传 provider/)
+  assert.doesNotMatch(text, /provider:\s*[`"']spawn/)
   assert.match(text, /单专家/)
 
   const [runId] = runDirs(root)
