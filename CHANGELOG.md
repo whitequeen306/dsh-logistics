@@ -2,6 +2,20 @@
 
 All notable changes to this project. Format follows [Keep a Changelog](https://keepachangelog.com/); versions use [SemVer](https://semver.org/).
 
+## [0.6.1] - 2026-11-04
+
+### Fixed
+
+- **报告凭据泄漏**：新增 `lib/redact.js`，在 `verdict.mjs` 校验 contract 之前，对 `report.md`、专家报告、`packet.md` 和 `docs/logistics/latest.md` 做确定性脱敏；覆盖私钥块、云厂商/平台 token、JWT、URL 内嵌密码、Basic/Bearer 认证和 secret 赋值，保留 `process.env.*` 等占位值。
+- 脱敏后由 `lib/report-check.js` 再做残留扫描；报告仍含疑似凭据时直接判不合格，避免“已脱敏”只停留在提示层。
+- `run.jsonl` 新增 `secrets.redacted` 事件；`verdict.validated` 的 warning 会提示轮换真实凭据。
+- 旧版 `lib/report.js` 写 `report.json`、`report.md`、`latest.md` 前也做深拷贝脱敏。
+
+### Changed
+
+- 测试增至 81 个，新增 `test/redact.test.js`（纯函数、文件级、报告 contract 集成）。
+- 文档与架构说明更新到 0.6.1。
+
 ## [0.6.0] - 2026-11-04
 
 ### Removed
