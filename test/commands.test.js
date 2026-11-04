@@ -82,7 +82,7 @@ function makeCompleteReport(root) {
   return report
 }
 
-test('registers exactly seven 0.3.0 commands', () => {
+test('registers exactly seven 0.3.2 commands', () => {
   const commands = createCommands({ pluginRoot })
   assert.deepEqual(
     commands.map((command) => command.name),

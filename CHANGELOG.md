@@ -2,6 +2,19 @@
 
 All notable changes to this project. Format follows [Keep a Changelog](https://keepachangelog.com/); versions use [SemVer](https://semver.org/).
 
+## [0.3.2] - 2026-11-04
+
+### Changed
+
+- 按专家审计扩展五个领域的覆盖与深度：
+  - correctness 增加 `data-integrity` / `architecture` section，补齐金额/单位、事务/幂等、迁移、分层边界与调用点检查。
+  - security 增加 `authz` / `browser` / `uploads` section，补齐 IDOR/租户、CSRF/Cookie/CSP、上传/下载、密码存储、暴力破解与提示注入。
+  - reliability 深化错误分类、DLQ/outbox/deadline、优雅关闭、测试删除/跳过、分支/并发覆盖和测试命令验证。
+  - maintainability 增加耦合/可测试性/API 一致性/配置孤儿检查，以及入口枚举与工具化死代码验证。
+  - perf 拆分为 `hot-path` / `data-access` / `runtime` / `frontend` / `memory-startup`，加入 A/B/C 证据阶梯、数据库/前端检查表和可测量 `fix.tests`。
+- 子代理 prompt 输出 `focus` 关注面；`/logi-perf` 未覆盖时仍明确写“性能未覆盖”。
+- 60 个测试通过（新增扩展 section 断言）。
+
 ## [0.3.1] - 2026-11-04
 
 ### Fixed

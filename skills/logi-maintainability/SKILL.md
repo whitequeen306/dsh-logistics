@@ -1,6 +1,6 @@
 ---
 name: logi-maintainability
-description: Maintainability pass for DSH Logistics — readability, duplication, naming, unnecessary abstraction, state complexity, dead code, orphan files, and unused dependencies. Behaviour must be preserved; no style churn.
+description: Maintainability pass for DSH Logistics — readability, duplication, coupling, testability, API consistency, dead code, orphan files, unused dependencies, and configuration drift. Behaviour must be preserved; no style churn.
 ---
 
 # Maintainability
@@ -33,63 +33,122 @@ directory and `scope.json`; your only output is one handoff JSON.
   `{"schemaVersion":2,"expert":"<expert>","status":"ok|partial|failed","summary":"...","sections":{...},"findings":[...],"deferred":[],"notes":""}`
 - Read-only: never edit source, commit, delete, format, install, or spawn another agent.
 
+## First pass: change cost
+
+1. Read `scope.json` and the diff. What future change becomes harder because of this?
+2. Find the entry points/consumers with `rg` before calling anything unused.
+3. State the behaviour that must not change. If you cannot, the finding is not a
+   simplification — defer it or drop it.
+
 ## simplify
 
-### Structure
+### Structure and control flow
 
-- Deep nesting that can be flattened with early returns.
+- Deep nesting that can be flattened with early returns/guards.
 - Duplicated branches/blocks that can share one path without hiding differences.
 - Functions doing several unrelated things; boolean-parameter switches.
-- Premature abstraction with one implementation; unnecessary indirection.
-- Dead conditions left after a feature flag or migration.
+- Premature abstraction with one implementation; unnecessary indirection/wrapper.
+- Dead conditions left after a feature flag or migration; flags that can never be set.
+- Nested ternaries, assignment in condition, mixed guard/clause styles in one function.
+- Duplicated domain rule in two modules; no single owner.
 
 ### Naming and data flow
 
 - Names that lie about units, side effects, or ownership.
-- Long parameter lists; implicitly related values passed separately.
+- Long parameter lists; implicitly related values passed separately; boolean traps.
 - State that can be derived instead of stored; duplicated source of truth.
 - Comments that restate code or contradict it; missing "why" for a non-obvious choice.
+- Misleading abstractions: a `getX` that writes, an `isReady` that mutates.
+
+### Coupling and cohesion
+
+- A module reaching into another module's internals or persistence.
+- Bidirectional dependency/cycle; a low-level util importing app/UI code.
+- A change to one concept requires edits in unrelated files.
+- A class/function that knows too many collaborators; hidden global state.
+- Only report coupling introduced or worsened by the diff; pre-existing debt is at most
+  `low`/`info`.
+
+### Testability and API surface
+
+- Logic trapped in a handler/singleton so it cannot be tested without a server/DB.
+- Time, randomness, network, or filesystem called directly with no seam.
+- Exported API inconsistent with its neighbours (sync/async, error shape, naming,
+  parameter order); an export with no consumer and no documented public purpose.
+- Public surface exposes an internal type or implementation detail.
+- Deprecation/versioning missing for a changed public API.
 
 ### Behaviour preservation
 
 Before proposing a simplification, identify the observable behaviour that must not
-change. If you cannot state it, the change is not a simplification — it is a redesign.
-Respect Chesterton's Fence: do not remove a guard whose purpose you have not found.
-Do not report pure formatting, import order, or naming that only a style guide would
-care about.
+change (return values, errors, side effects, ordering, timing). If you cannot state it,
+the change is not a simplification — it is a redesign. Respect Chesterton's Fence: do
+not remove a guard whose purpose you have not found.
+
+Do **not** report pure formatting, import order, quote style, or naming that only a
+style guide would care about. No drive-by renames; no whole-file rewrites.
 
 ## cleanup
 
+Use `rg`/`grep -R`/language-server references before declaring anything dead. Evidence
+must show the search and its result.
+
 ### Dead code
 
-Use `CONFIRMED_DEAD` / `LIKELY_DEAD` / `UNCERTAIN` in `evidence`, with grep proof
-(`rg`, `grep -R`, language server reference search):
+Use `CONFIRMED_DEAD` / `LIKELY_DEAD` / `UNCERTAIN` in `evidence`:
 
 - Unreachable branches and functions with no callers.
 - Exported symbols with no internal or documented external consumers.
 - Feature-flag branches that can no longer be selected.
-- Orphan files not imported by any entry point.
+- Orphan files not imported by any entry point; enumerate entry points from
+  `package.json` (`main`, `exports`, `bin`), `index.*`, test globs, and dynamic imports.
+- Public dead code: require proof from docs/examples/consumers, and call out the
+  compatibility risk. Never delete public API, CLI flags, config keys, or DB columns
+  without that proof.
+
+Do **not** report local unused imports/variables — linters own that and it creates
+noise. Report them only when they indicate a removed feature.
 
 ### Unused dependencies
 
 - `package.json` / `requirements.txt` / `go.mod` entries with no import.
 - Dev dependency used only by a deleted script.
 - Duplicate dependencies serving the same purpose.
+- Use available tools when present: `npm ls --all`, `depcheck`, `knip`, `ts-prune`;
+  otherwise grep the import specifier and report the method.
+
+### Orphan files and configuration
+
+- Files not reachable from any entry point; assets/fixtures with no reference.
+- Config keys/env vars read nowhere, or read in one place and documented differently.
+- `.env.example` drift; defaults that no longer match the schema.
+- Migration/seed/script files orphaned after a rename.
+- Docs/comments that describe a removed command or config key (one `info` at most).
 
 ### Scope limits
 
-- Do **not** report local unused imports/variables — linters own that and it creates
-  noise. Report them only when they indicate a removed feature.
-- Do not ask to delete public API, CLI flags, config keys, or database columns without
-  proving they are unused and calling out the compatibility risk.
 - Never delete anything yourself. You are read-only.
+- A cleanup that touches public API, dependencies, file moves, or multiple modules is
+  `plan`, not `direct`.
+- If the search is inconclusive, use `UNCERTAIN` and say what would prove it.
+
+## Verification checklist
+
+Before marking `cleanup` zero, confirm you checked:
+
+- entry points and dynamic imports;
+- test/script/fixture references;
+- config/env/schema references;
+- docs/examples/public API mentions;
+- lockfile/dependency imports (if the lockfile is in scope).
 
 ## Severity hints
 
 - `medium`: duplicated state machine or abstraction that already causes divergence;
-  confirmed dead public surface with a maintenance cost.
+  confirmed dead public surface with a maintenance cost; coupling that blocks a likely
+  change.
 - `low`: local readability issue, small duplication, unused private helper.
-- `info`: naming or organisation suggestion with no defect.
+- `info`: naming/organisation suggestion, docs drift with no defect.
 
 Maintainability findings are capped at `medium`. Do not inflate a style preference to
 `high` because it annoys you.

@@ -13,7 +13,7 @@ function readSkill(name) {
   return parseSkillFile(readFileSync(join(skillsDir, name, 'SKILL.md'), 'utf8'), name)
 }
 
-test('ships exactly the six 0.3.0 skills', () => {
+test('ships exactly the six 0.3.2 skills', () => {
   const dirs = readdirSync(skillsDir, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
@@ -47,6 +47,31 @@ test('specialist skills match the five expert keys and declare sections', () => 
       assert.match(parsed.content, new RegExp(section, 'iu'), `${expert.skill}: ${section}`)
     }
   }
+})
+
+test('audit-expanded section coverage is declared', () => {
+  const sections = Object.fromEntries(EXPERT_LIST.map((expert) => [expert.key, expert.sections]))
+  assert.deepEqual(sections.correctness, [
+    'logic',
+    'state',
+    'concurrency',
+    'data-integrity',
+    'contracts',
+    'architecture',
+    'edge-cases',
+  ])
+  assert.deepEqual(sections.security, [
+    'auth',
+    'authz',
+    'injection',
+    'browser',
+    'uploads',
+    'secrets',
+    'crypto',
+    'exposure',
+    'supply-chain',
+  ])
+  assert.deepEqual(sections.perf, ['hot-path', 'data-access', 'runtime', 'frontend', 'memory-startup'])
 })
 
 test('every specialist carries the shared handoff contract inline', () => {

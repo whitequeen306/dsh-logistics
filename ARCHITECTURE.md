@@ -1,6 +1,6 @@
-# dsh-logistics 架构与执行模型（0.3.1）
+# dsh-logistics 架构与执行模型（0.3.2）
 
-> 本文描述 **0.3.1 已实现**的结构，不是路线图。0.3.1 补齐 handoff/verdict/fix contract 的端到端验证，0.3.0 把最终裁决交给主会话模型（“主编”），机器只保留事实、收集、contract 校验和安全边界；评分、基线、门禁已在 0.2.0 删除。模块取舍见 [MODULE-DECISION.md](./MODULE-DECISION.md)，0.1.0 的旧架构保留在 git 历史与 [master 分支](https://github.com/whitequeen306/dsh-logistics/tree/master)。
+> 本文描述 **0.3.2 已实现**的结构，不是路线图。0.3.2 按专家审计补齐了五个领域的 section 广度与技能深度；0.3.1 补齐 handoff/verdict/fix contract 的端到端验证；0.3.0 把最终裁决交给主会话模型（“主编”），机器只保留事实、收集、contract 校验和安全边界。评分、基线、门禁已在 0.2.0 删除。模块取舍见 [MODULE-DECISION.md](./MODULE-DECISION.md)，0.1.0 的旧架构保留在 git 历史与 [master 分支](https://github.com/whitequeen306/dsh-logistics/tree/master)。
 
 ## 1. 一句话模型
 
@@ -48,11 +48,11 @@ cli → scope / handoffs / verdict
 
 | key | 命令 | 默认 | sections | 职责 |
 | --- | --- | --- | --- | --- |
-| `correctness` | `/logi-correctness` | 是 | logic, state, concurrency, contracts, edge-cases | 逻辑、状态、并发、契约、边界；架构/API 兼容/schema 迁移也归这里 |
-| `security` | `/logi-security` | 是 | auth, injection, secrets, crypto, exposure, supply-chain | 信任边界、认证授权、注入、密钥、加密、暴露、供应链 |
+| `correctness` | `/logi-correctness` | 是 | logic, state, concurrency, data-integrity, contracts, architecture, edge-cases | 逻辑、状态、并发、数据完整性、契约、架构边界、边界输入 |
+| `security` | `/logi-security` | 是 | auth, authz, injection, browser, uploads, secrets, crypto, exposure, supply-chain | 信任边界、认证、授权、注入、浏览器、上传、密钥、加密、暴露、供应链 |
 | `reliability` | `/logi-reliability` | 是 | error-handling, tests | 吞错/传播/重试/幂等/部分失败/超时/可观测性 + 回归缺口 |
-| `maintainability` | `/logi-maintainability` | 是 | simplify, cleanup | 行为保持的简化，以及未用依赖/孤儿文件/公开死代码 |
-| `perf` | `/logi-perf` | 否 | performance | 热路径复杂度、N+1/索引、阻塞 I/O、重渲染、内存；只出 `plan` |
+| `maintainability` | `/logi-maintainability` | 是 | simplify, cleanup | 结构、耦合、可测试性、API 表面、死代码、依赖、配置孤儿 |
+| `perf` | `/logi-perf` | 否 | hot-path, data-access, runtime, frontend, memory-startup | 热路径复杂度、数据库访问、运行时阻塞、前端渲染/包体、内存/启动；只出 `plan` |
 
 `/logi` 默认跑前四个。是否追加 `perf` 由**主编模型**读 scope 后判断：只有 diff 明确涉及热路径才加；不加时报告必须写“性能未覆盖”。
 
@@ -299,4 +299,4 @@ docs/logistics/latest.md # 仅默认四模块完整时更新
 - CLI：`lib/cli/collect.mjs`、`bundle.mjs`、`verdict.mjs`
 - 专家 skill：`skills/logi-correctness|security|reliability|maintainability|perf/SKILL.md`
 - 修复 skill：`skills/logi-fix/SKILL.md`
-- 测试：`test/*.test.js`（59 个）
+- 测试：`test/*.test.js`（60 个）

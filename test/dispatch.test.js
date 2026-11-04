@@ -37,6 +37,8 @@ test('child prompt is self-contained and names one expert', () => {
   assert.match(prompt, /logi-security/)
   assert.match(prompt, /C:\/tmp\/run\/handoff\/security\.json/)
   assert.match(prompt, /sections/)
+  assert.match(prompt, /关注面/)
+  assert.match(prompt, /认证、授权\/租户隔离/)
   assert.match(prompt, /不要调用其他 subagent/)
   assert.doesNotMatch(prompt, /provider/)
   assert.doesNotMatch(prompt, /logi-core/u)
