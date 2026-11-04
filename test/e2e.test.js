@@ -10,8 +10,8 @@ import { validateVerdict } from '../lib/verdict.js'
 import {
   cleanup,
   commitAll,
-  handoff,
   initRepo,
+  projectHandoff,
   runCli,
   sampleFinding,
   tempDir,
@@ -62,7 +62,7 @@ function securityFinding() {
   })
 }
 
-test('0.3.3 end-to-end: dispatch -> handoff -> bundle -> verdict -> fix dry-run', async () => {
+test('0.4.0 end-to-end: project dispatch -> handoff -> bundle -> verdict -> fix dry-run', async () => {
   const root = initRepo()
   try {
     write(root, 'src/auth.js', "export function isAdmin(user) {\n  if (user.role = 'admin') {\n    return true\n  }\n  return false\n}\n")
@@ -74,7 +74,9 @@ test('0.3.3 end-to-end: dispatch -> handoff -> bundle -> verdict -> fix dry-run'
     assert.equal(result.kind, 'success', result.text)
     assert.equal(queued.messages.length, 1)
     const dispatch = queued.messages[0].content[0].text
-    assert.match(dispatch, /只运行 \*\*安全（security）\*\*/u)
+    assert.match(dispatch, /项目后勤派发 · \/logi-security/u)
+    assert.match(dispatch, /全项目审查/u)
+    assert.match(dispatch, /project\.units/u)
     assert.match(dispatch, /collect\.mjs/u)
     assert.match(dispatch, /bundle\.mjs/u)
     assert.match(dispatch, /verdict\.mjs/u)
@@ -82,12 +84,15 @@ test('0.3.3 end-to-end: dispatch -> handoff -> bundle -> verdict -> fix dry-run'
     const runDir = latestRun(root)
     const scope = JSON.parse(readFileSync(join(runDir, 'scope.json'), 'utf8'))
     assert.deepEqual(scope.experts, ['security'])
+    assert.equal(scope.mode, 'project')
+    assert.equal(scope.source, 'project')
+    assert.ok(scope.project.units.length >= 1)
 
     const missing = loadHandoffs({ root, scope })
     assert.equal(missing.complete, false)
     assert.deepEqual(missing.missing, ['security'])
 
-    write(runDir, 'handoff/security.json', JSON.stringify(handoff('security', [securityFinding()]), null, 2))
+    write(runDir, 'handoff/security.json', JSON.stringify(projectHandoff('security', scope, [securityFinding()]), null, 2))
     const collected = runCli(pluginRoot, 'collect.mjs', ['--run', runDir])
     assert.equal(collected.code, 0, collected.output)
     assert.match(collected.output, /complete: true/u)
@@ -168,12 +173,19 @@ test('contract rejects missing sections and self-certified empty coverage', asyn
     const runDir = latestRun(root)
     const scope = JSON.parse(readFileSync(join(runDir, 'scope.json'), 'utf8'))
 
-    const broken = handoff('security', [])
+    const broken = projectHandoff('security', scope, [])
     delete broken.sections.auth
     write(runDir, 'handoff/security.json', JSON.stringify(broken, null, 2))
     const inventory = loadHandoffs({ root, scope })
     assert.equal(inventory.complete, false)
     assert.match(inventory.handoffs.find((item) => item.expert === 'security').error, /sections 缺少/u)
+
+    const missingUnit = projectHandoff('security', scope, [])
+    delete missingUnit.units[scope.project.units[0].id]
+    write(runDir, 'handoff/security.json', JSON.stringify(missingUnit, null, 2))
+    const unitInventory = loadHandoffs({ root, scope })
+    assert.equal(unitInventory.complete, false)
+    assert.match(unitInventory.handoffs.find((item) => item.expert === 'security').error, /units 缺少或非法/u)
 
     const verdict = {
       schemaVersion: 2,

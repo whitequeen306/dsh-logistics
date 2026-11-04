@@ -2,6 +2,21 @@
 
 All notable changes to this project. Format follows [Keep a Changelog](https://keepachangelog.com/); versions use [SemVer](https://semver.org/).
 
+## [0.4.0] - 2026-11-04
+
+### Changed
+
+- **全项目审查**：`/logi`、`/logi-correctness`、`/logi-security`、`/logi-reliability`、`/logi-maintainability`、`/logi-perf` 现在审查整个项目，不再审查工作区 diff 或最近一次提交；没有 `/logi-diff`，没有 `--diff`。`/logi-fix` 保持不变。
+- 新增 `lib/project.js`：`git ls-files` 全量清单 → 源码/配置分类 → 模块切分 → 审查单元（默认 `maxFiles=2000`、`maxFilesPerUnit=120`、`maxUnits=12`）；文档、示例/夹具、静态资源、构建产物、锁文件、生成物不进入范围。
+- 每个专家仍只启动一个 child，但必须覆盖**全部审查单元**，并在 handoff 的 `units` 映射中声明 `reviewed` / `sampled` / `skipped`；缺失或非法单元会被判为 invalid，任一 `skipped` 使 handoff 为 `partial`。
+- `collect.mjs` 打印每个单元的覆盖率；`packet.md` 增加单元 × 专家矩阵；主编报告必须解释未覆盖/抽样单元。
+- `scope.json` 新增 `mode:'project'`、`source:'project'`、`project.units`、`project.totals`；`stats.additions` 在 project 模式表示总行数。
+- 文档（README、ARCHITECTURE）按 0.4.0 全项目模型重写；测试增至 74 个。
+
+### Removed
+
+- 旧的改动集派发 `buildSingleDispatch` / `buildPipelineDispatch`、`optionalExpertBlock`、按单元分配专家的 assignment 逻辑，以及面向用户的 diff 范围说明。
+
 ## [0.3.5] - 2026-11-04
 
 ### Added

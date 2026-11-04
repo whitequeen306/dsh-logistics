@@ -1,50 +1,52 @@
-# dsh-logistics 架构与执行模型（0.3.5）
+# dsh-logistics 架构与执行模型（0.4.0）
 
-> 本文描述 **0.3.5 已实现**的结构，不是路线图。0.3.5 新增每个 run 的 `run.jsonl`、`dispatch.md` 和 `prompts/<expert>.md` 运行日志；0.3.4 把 verdict 覆盖接到真实 handoff、允许可选 perf 明确覆盖、拒绝无证据/错前缀 finding，并让 `/logi-fix` 自动跳过较新的不完整判决；0.3.3 区分可选专家未选与必需专家缺失，并把跨专家 `deferred` 结构化写入 verdict；0.3.2 按专家审计补齐了五个领域的 section 广度与技能深度；0.3.1 补齐 handoff/verdict/fix contract 的端到端验证；0.3.0 把最终裁决交给主会话模型（“主编”），机器只保留事实、收集、contract 校验和安全边界。评分、基线、门禁已在 0.2.0 删除。模块取舍见 [MODULE-DECISION.md](./MODULE-DECISION.md)，0.1.0 的旧架构保留在 git 历史与 [master 分支](https://github.com/whitequeen306/dsh-logistics/tree/master)。
+> 本文描述 **0.4.0 已实现**的结构，不是路线图。0.4.0 把审查范围从「工作区 diff / 最近提交」改成**整个项目**：`git ls-files` 全量清单 → 文件分类 → 模块切分 → 审查单元；每个专家覆盖全部单元，并用 handoff 的 `units` 映射声明 reviewed / sampled / skipped。0.3.x 的主编模型、contract 校验、运行日志和修复白名单继续保留。评分、基线、门禁已在 0.2.0 删除。
 
 ## 1. 一句话模型
 
 ```text
 /logi-* 命令
-  → 确定性 scope.json（改了哪些文件、测试命令、可用专家、模型路由）
-  → 主会话模型（主编）读 scope，决定派发哪些专家
-  → N 个只读专家 child，各写 handoff/<expert>.json
-  → collect（盘点完整性，不是质量门禁）
-  → bundle（候选材料 + 稳定 ID）
+  → 确定性 scope.json（全项目文件、模块、审查单元、测试命令、模型路由）
+  → 主会话模型（主编）读 scope，派发专家
+  → 每位专家一个只读 child，覆盖全部单元，写 handoff/<expert>.json
+  → collect（盘点专家 + 单元覆盖，不是质量门禁）
+  → bundle（候选材料 + 稳定 ID + 单元 × 专家矩阵）
   → 主会话模型合并/去重/定级/取舍，写 verdict.json + report.md
   → verdict.mjs 校验 contract（不判断内容好坏）
   → 默认四模块完整时才更新 latest
 ```
 
-关键点：**机器负责事实与安全边界，模型负责判断与成文。** 机器不再生成最终报告，也不再把“去重结果”当成唯一真相。
+关键点：**机器负责事实与安全边界，模型负责判断与成文。** 一个专家一个 child，不是「单元 × 专家」几十个 child；覆盖是否真实由 handoff 的单元映射和机器校验共同约束。
 
 ## 2. 分层
 
 | 层 | 文件 | 职责 | 调模型 |
 | --- | --- | --- | --- |
 | 注册层 | `lib/index.js` | 加载 6 个 skill，注册 7 个命令 | 否 |
-| 命令层 | `lib/commands.js` | 取 cwd、建 run、注入派发、处理 `/logi-fix` | 否（只入队） |
-| 范围层 | `lib/scope.js` | git/文件扫描、忽略、测试命令、可选专家、模型路由、`scope.json` | 否 |
+| 命令层 | `lib/commands.js` | 取 cwd、建 run、注入全项目派发、处理 `/logi-fix` | 否（只入队） |
+| 项目层 | `lib/project.js` | 文件分类、模块归属、审查单元、上限与合并 | 否 |
+| 范围层 | `lib/scope.js` | git 清单、项目 scope 落盘、测试命令、模型路由 | 否 |
 | 派发层 | `lib/dispatch.js` | 主编协议、child prompt、collect/bundle/verdict 命令 | 否 |
 | 专家层 | `skills/logi-*/SKILL.md` + `subagent` | 每位专家一个只读 child；共享契约内联在专家 skill 中 | 是 |
-| 收集层 | `lib/handoffs.js`、`lib/cli/collect.mjs` | 校验 handoff 完整性、section 计数、候选材料 | 否 |
+| 收集层 | `lib/handoffs.js`、`lib/cli/collect.mjs` | 校验 handoff、section 计数、单元覆盖、候选材料 | 否 |
 | 裁决层 | `lib/verdict.js`、`lib/cli/verdict.mjs` | verdict contract 校验、稳定 ID、覆盖检查 | 否 |
 | 修复层 | `lib/commands.js` `runFix`、`skills/logi-fix` | 从 verdict 选 direct finding，白名单/测试/回滚 | 是（单 child） |
 | 配置层 | `lib/config.js`、`lib/constants.js` | 忽略、上限、测试命令、模块显示名、专家模型路由 | 否 |
+| 日志层 | `lib/runlog.js` | `run.jsonl`、`dispatch.md`、`prompts/` | 否 |
 
 依赖方向：
 
 ```text
-index → commands → scope / config / dispatch / verdict
+index → commands → scope / project / config / dispatch / verdict
 dispatch → constants
 handoffs → findings / constants / util
-verdict → findings / constants / util
+verdict → findings / constants / util / handoffs
 cli → scope / handoffs / verdict
 ```
 
 运行时**不 import 任何 `@deepseek-ai/*`**，只使用 `ctx.commands`、`ctx.skills`、`invocation.agent.followup` 和原生 `subagent` 工具。
 
-## 3. 五个模块
+## 3. 五个专家
 
 | key | 命令 | 默认 | sections | 职责 |
 | --- | --- | --- | --- | --- |
@@ -54,19 +56,21 @@ cli → scope / handoffs / verdict
 | `maintainability` | `/logi-maintainability` | 是 | simplify, cleanup | 结构、耦合、可测试性、API 表面、死代码、依赖、配置孤儿 |
 | `perf` | `/logi-perf` | 否 | hot-path, data-access, runtime, frontend, memory-startup | 热路径复杂度、数据库访问、运行时阻塞、前端渲染/包体、内存/启动；只出 `plan` |
 
-`/logi` 默认跑前四个。是否追加 `perf` 由**主编模型**读 scope 后判断：只有 diff 明确涉及热路径才加；不加时报告必须写“性能未覆盖”。
+`/logi` 默认跑前四个，**不会自动追加** `perf`；需要性能维度时单独执行 `/logi-perf`。`/logi` 报告必须写“性能未运行”，不能把未检查当成没问题。
 
 ## 4. 命令与执行方法
 
 | 命令 | 类型 | 子代理 | 写源码 |
 | --- | --- | --- | --- |
-| `/logi` | 多专家审查 | 4（可加 perf） | 否 |
-| `/logi-correctness` | 单专家审查 | 1 | 否 |
-| `/logi-security` | 单专家审查 | 1 | 否 |
-| `/logi-reliability` | 单专家审查 | 1 | 否 |
-| `/logi-maintainability` | 单专家审查 | 1 | 否 |
-| `/logi-perf` | 单专家审查 | 1 | 否 |
+| `/logi` | 多专家全项目审查 | 4 | 否 |
+| `/logi-correctness` | 单专家全项目审查 | 1 | 否 |
+| `/logi-security` | 单专家全项目审查 | 1 | 否 |
+| `/logi-reliability` | 单专家全项目审查 | 1 | 否 |
+| `/logi-maintainability` | 单专家全项目审查 | 1 | 否 |
+| `/logi-perf` | 单专家全项目审查 | 1 | 否 |
 | `/logi-fix` | 列出 / 计划 / 执行 | 0 或 1 | 仅执行时，受限 |
+
+没有 `/logi-diff`，没有 `--diff`，没有“工作区模式”命令。`createScope` 内部保留 `mode='changes'` 仅用于旧测试与兼容调用；所有注册命令固定传 `mode:'project'`。
 
 ### 4.1 审查 handler
 
@@ -74,10 +78,10 @@ cli → scope / handoffs / verdict
 
 1. 从 `invocation.agent.session.header.cwd` 取工作区，回退 `process.cwd()`。
 2. `gitRoot(cwd) ?? cwd` 作为项目根。
-3. `loadConfig(root)` 合并 `.logistics/config.json`，包含 `models` 路由。
-4. `createScope({ cwd, command, experts, notes, config })` 写 `.logistics/runs/<runId>/scope.json`。
-5. 没有可分析文件时返回中文错误，不派发。
-6. 生成 `buildSingleDispatch` 或 `buildPipelineDispatch`（内含逐字 child prompt、模型路由、collect/bundle/verdict 命令）。
+3. `loadConfig(root)` 合并 `.logistics/config.json`，包含 `project` 上限和 `models` 路由。
+4. `createScope({ cwd, command, experts, notes, config, mode: 'project' })` 写 `.logistics/runs/<runId>/scope.json`。
+5. 没有任何可分析文件时返回中文错误，不派发。
+6. 生成 `buildProjectDispatch`（内含逐字 child prompt、单元清单、模型路由、collect/bundle/verdict 命令）。
 7. `agent.followup(...)` 注入下一轮 user 消息。
 8. 立即返回 `{kind:"success", text}`。
 
@@ -90,24 +94,104 @@ cli → scope / handoffs / verdict
 - `<ID...>`：校验 schema、ID、`kind=direct`、非 `perf`、git 仓库、工作区干净、HEAD 未变；写 `selection.json`，派发一个 fixer。
 - 不支持 `--all`，不支持 apply-then-revert。
 
-## 5. 审查流水线
+## 5. 全项目范围
+
+`lib/project.js` 做纯确定性工作，任何模型看到文件之前，范围已经固定。
+
+### 5.1 文件清单
+
+```text
+git ls-files --cached --others --exclude-standard -z
+  → 去重、toPosix、排序
+  → 过滤 ignore（node_modules/dist/锁文件/.logistics 等）
+  → isProjectFile(path)
+  → countLines(path)（<=1MB 且非二进制）
+```
+
+`isProjectFile` 保留：
+
+- 源码扩展名：JS/TS/JSX/TSX、Python、Go、Rust、Java/Kotlin、C#、Ruby、PHP、Swift、Scala、C/C++、Vue/Svelte/Astro、CSS/SCSS、HTML、Shell/PowerShell、SQL、GraphQL。
+- 配置与构建描述：`package.json`、`pom.xml`、`build.gradle*`、`requirements.txt`、`pyproject.toml`、`go.mod`、`Cargo.toml`、`Dockerfile`、`docker-compose*`、`nginx.conf`、`.env.example`、`tsconfig.json`、各 bundler/linter 配置，以及根层/配置目录的 YAML/JSON/XML/TOML/properties。
+
+排除：文档、示例/测试夹具、静态资源、`public`、`dist/build/out/target/coverage`、`node_modules/vendor`、锁文件、`.logistics` 与 `docs/logistics` 生成物、空文件/二进制/超大文件。
+
+### 5.2 模块与单元
+
+```text
+moduleKeyFor(path):
+  packages|apps|services|modules|libs|crates|backend|frontend/<name> → 两段
+  其他 → 首段；根文件 → (root)
+
+groupUnits:
+  按 moduleKey 分组
+  → 每 group 按 maxFilesPerUnit 切块，标签 `module (1/N)`
+  → 单元数超过 maxUnits 时反复合并最小的两个
+     - 同前缀 → `backend（小模块合集 59 文件）`
+     - 跨前缀 → `其他模块（admin、config、.github 等）`
+  → 按文件数降序，重编 u01..uNN
+```
+
+默认：
+
+```json
+{ "maxFiles": 2000, "maxFilesPerUnit": 120, "maxUnits": 12 }
+```
+
+`buildProjectPlan({ root, config })` 返回：
+
+```json
+{
+  "files": [{ "path": "src/a.js", "status": "present", "lines": 10 }],
+  "units": [{ "id": "u01", "label": "src", "files": [], "stats": { "files": 2, "lines": 30 } }],
+  "totals": { "trackedFiles": 1488, "reviewedFiles": 1102, "omittedFiles": 386,
+              "truncated": false, "units": 12, "lines": 150079 }
+}
+```
+
+单元**没有 assignment**：不会生成「u01 归 correctness」这种矩阵；每位专家都覆盖全部单元。
+
+### 5.3 scope 形状
+
+```json
+{
+  "schemaVersion": 2,
+  "version": "0.4.0",
+  "runId": "20261104-...",
+  "mode": "project",
+  "source": "project",
+  "root": "C:/path/project",
+  "git": { "branch": "main", "head": "abc123", "dirty": false },
+  "stats": { "analyzedFiles": 1102, "additions": 150079, "deletions": 0, "truncated": false },
+  "experts": ["correctness", "security", "reliability", "maintainability"],
+  "optionalExperts": ["perf"],
+  "project": { "units": [], "totals": {} },
+  "files": [],
+  "testCommand": { "command": "mvn test", "source": "pom.xml" },
+  "output": { "runDir": "...", "handoffDir": "...", "verdictJson": "...", "reportMarkdown": "..." }
+}
+```
+
+`stats.additions` 在 project 模式表示**总行数**（历史字段名保留，展示时写“行”）。非 git 目录直接报错：`全项目模式需要 git 仓库；当前目录不在 git 工作区。`
+
+## 6. 审查流水线
 
 ```text
 /logi
   │
-  ├─ 1. createScope
-  │       git 状态 / diff / 最近提交 / 文件清单 / 测试命令 / 模型路由
-  │       → .logistics/runs/<runId>/scope.json
+  ├─ 1. createScope（全项目）
+  │       git ls-files → 分类 → 单元 → scope.json
   │
   ├─ 2. followup：主会话模型收到派发消息，成为主编
   │
   ├─ 3. 分波 subagent：每条 assistant 消息最多 4 个 child
-  │       每个 child 只加载自己的专家 skill，只读，写 handoff/<expert>.json
+  │       每位 child 收到完整单元清单 + 自己的专家 skill
+  │       只读，写 handoff/<expert>.json（含 units 映射）
   │
-  ├─ 4. collect.mjs：盘点 received/missing/invalid/failed/partial
+  ├─ 4. collect.mjs：盘点专家 received/missing/invalid/failed/partial
+  │       并打印每个单元的 reviewed/sampled/skipped/missing
   │       missing/invalid 重试一次；第二次失败写 failed handoff
   │
-  ├─ 5. bundle.mjs：生成 handoffs.json + packet.md + 稳定 ID
+  ├─ 5. bundle.mjs：生成 handoffs.json + packet.md + 稳定 ID + 单元 × 专家矩阵
   │       主编自己读 packet 与原始 handoff，不只看机器摘要
   │
   ├─ 6. 主编裁决：合并/去重/定级/取舍
@@ -122,14 +206,14 @@ cli → scope / handoffs / verdict
 - 未派发的专家不算 missing；已派发但没有 handoff 才算。
 - `failed` 是终态，不重试。
 - 没有 `subagent` 工具时硬停，**没有父代理自审降级**。
-- `collect` 的 `complete` 只表示证据收齐，不表示审查通过；`verdict` 只校验 contract，不判断内容质量。
+- `collect` 的 `complete` 只表示证据收齐，不表示审查通过；`verdict` 只校验 contract。
 - 单模块或非默认组合只写本次 run，不覆盖 `docs/logistics/latest.md` 与 `.logistics/latest.json`。
 
-## 6. 子代理协议
+## 7. 子代理协议
 
-### 6.1 创建
+### 7.1 创建
 
-`buildChildPrompt({ expertKey, scope })` 是 child prompt 的**唯一来源**（`lib/dispatch.js`）。父代理直接把 `buildPipelineDispatch` / `buildSingleDispatch` 中的 prompt 逐字传给 `subagent`：
+`buildChildPrompt({ expertKey, scope })` 是 child prompt 的**唯一来源**（`lib/dispatch.js`）。父代理直接把 `buildProjectDispatch` 中的 prompt 逐字传给 `subagent`：
 
 ```js
 subagent({
@@ -142,15 +226,16 @@ subagent({
 
 `provider`/`model` 不是普通参数：只有 `modelSelectionSettings` 开启、provider 支持 `agentOptions`、且路由在允许列表内才可传；否则去掉重试，回退父会话模型。
 
-### 6.2 专家 child 的硬约束
+### 7.2 专家 child 的硬约束
 
 - 只读；不编辑源码、不提交、不删除、不嵌套 subagent。
 - 只负责一个模块；只加载自己的专家 skill。
+- **必须覆盖所有 `project.units`**，不能只看自己感兴趣的目录。
 - 每条 finding 必须有位置、证据、触发路径、影响。
 - 必须声明所有 section 的检查计数；计数与 findings 不一致会被判无效。
 - 只写自己的 `handoff/<expert>.json`；不读其他 child 的 handoff。
 
-### 6.3 handoff
+### 7.3 handoff
 
 ```json
 {
@@ -159,15 +244,24 @@ subagent({
   "status": "ok",
   "summary": "非空中文摘要",
   "sections": { "auth": 0, "injection": 1, "secrets": 0 },
+  "units": {
+    "u01": { "status": "reviewed", "filesRead": 12, "notes": "鉴权入口与过滤器已读" },
+    "u02": { "status": "sampled", "filesRead": 8, "notes": "120 个 DTO，按鉴权注解抽样" },
+    "u03": { "status": "skipped", "filesRead": 0, "notes": "纯静态资源" }
+  },
   "findings": [],
   "deferred": [],
   "notes": ""
 }
 ```
 
-`sections` 的每个计数必须等于该 section 的 findings 条数；未知 section、负数、缺失 section 都判无效。
+- `units` 必须包含**所有** `project.units` id；缺失/非法 → handoff invalid。
+- `status` 只能是 `reviewed / sampled / skipped`；任一 `skipped` 会把 handoff 标为 `partial`，collect 不 complete。
+- `sampled` 算已覆盖，但报告必须把它写成“抽样”而不是“逐行审查”。
+- `sections` 的每个计数必须等于该 section 的 findings 条数；未知 section、负数、缺失 section 都判无效。
+- findings 数量超过 `scope.maxFindings`（默认 12）会被判无效，不静默截断。
 
-### 6.4 跨专家 deferred
+### 7.4 跨专家 deferred
 
 某个专家发现“不属于本模块、但值得转交”的问题时，写进 handoff 的 `deferred`，不要塞进 `findings`：
 
@@ -188,16 +282,19 @@ subagent({
 - `bundle.mjs` 把 deferred 收进 `handoffs.json` 和 `packet.md`，并加 `from` 记录来源专家。
 - 主编必须把它写进 `verdict.deferred`；缺 `from` 或 `summary` 会被 contract 判无效。verdict 里不能静默丢弃。
 
-## 7. 报告与数据契约
+## 8. 报告与数据契约
 
-### 7.1 产物
+### 8.1 产物
 
 ```text
 .logistics/runs/<runId>/
   scope.json
+  dispatch.md
+  prompts/<expert>.md
+  run.jsonl
   handoff/<expert>.json
-  handoffs.json          # bundle：候选 finding + 覆盖
-  packet.md              # 给主编的候选材料
+  handoffs.json          # bundle：候选 finding + 专家/单元覆盖
+  packet.md              # 给主编的候选材料 + 单元 × 专家矩阵
   verdict.json           # 主编裁决
   report.md              # 人读报告
 .logistics/latest.json   # 仅默认四模块完整时更新
@@ -208,7 +305,7 @@ docs/logistics/latest.md # 仅默认四模块完整时更新
   fix-reverted.patch     # 仅失败回滚时出现
 ```
 
-### 7.2 finding
+### 8.2 finding
 
 ```json
 {
@@ -237,30 +334,29 @@ docs/logistics/latest.md # 仅默认四模块完整时更新
 - 性能项永远是 `plan`。
 - 没有证据的 critical/high 会被降级；`fix` 不完整会被降为 `plan`。
 
-### 7.3 ID 与去重
+### 8.3 ID 与去重
 
 - ID：`PREFIX + sha1(expert|category|file|normalizeTitle(title))` 前 5 位；不含行号，同 run 冲突自动扩到 6–8 位。
 - 跨专家去重由**主编**做；`bundle.mjs` 只给 `duplicateHints`，不替主编删除。
 - 机器仍保证 ID 稳定，方便 `/logi-fix` 引用。
 
-### 7.4 模块归属
+### 8.4 单元覆盖
 
-`moduleOf(file)`：
+`inventory.projectUnits` 是 scope 的单元目录；`unitCoverage(inventory)` 对每个单元统计：
 
-- `packages/*`、`apps/*` 取两段；
-- 去掉 `src`/`lib`/`app` 公共根后取首段；
-- 单段目录归该目录，根文件归 `(root)`；
-- 可用 `config.modules` 覆盖显示名。
+```text
+{ id: "u01", label: "src", counts: { reviewed: 3, sampled: 1, skipped: 0, missing: 0 } }
+```
 
-### 7.5 覆盖
+`counts` 只统计 expected/valid handoff；缺失或 invalid 计入 `missing`。`collect.mjs` 打印这组数据，`packet.md` 渲染单元 × 专家表。
 
-`coverage` 记录 expected / received / missing / invalid / failed / partial / complete；`optional` 只表示可追加、本次未选的专家，不算 missing。
+专家级 `coverage` 仍记录 expected / received / missing / invalid / failed / partial / complete；`optional` 只表示可追加、本次未选的专家，不算 missing。
 
-- `complete` 只表示“本次 expected 专家都收到合法 handoff”；
+- `complete` 只表示“本次 expected 专家都收到合法 handoff，且每个单元都未被任何专家标为 skipped”；
 - 单模块也算 complete，但**不可发布 latest**；
 - `latest` 只由默认四模块完整覆盖更新。
 
-### 7.6 运行日志
+### 8.5 运行日志
 
 每个 run 目录写 `run.jsonl`（每行 `{ts,event,...}`），由 `lib/runlog.js` 追加：
 
@@ -271,7 +367,7 @@ docs/logistics/latest.md # 仅默认四模块完整时更新
 
 同时写 `dispatch.md` 和 `prompts/<expert>.md`，保存实际发送的父/子 prompt。日志不含密钥，但 prompt 包含文件路径与范围。日志记录“发生了什么”，不替代 handoff 中的推理内容。
 
-## 8. 修复执行
+## 9. 修复执行
 
 `/logi-fix` 是唯一写入口，串行、单 fixer：
 
@@ -281,14 +377,15 @@ docs/logistics/latest.md # 仅默认四模块完整时更新
 4. fixer 只改白名单，跑 `scope.testCommand`；失败先存 `fix-reverted.patch`，回滚该组，写 `fix.json`。
 5. 不 commit、不 push、不安装依赖、不联网；不做 `--all`。
 
-## 9. 只读与限制
+## 10. 只读与限制
 
 - 审查 child 有写工具，但 prompt 要求只读；真正的安全边界是**文件白名单 + 修复阶段串行 + 不自动提交**。
 - 审查阶段不改变工作区；源码在审查期间变化会让证据过期，`/logi-fix` 会拒绝。
+- 一个专家覆盖所有单元意味着大型项目只能做模式扫描 + 抽样；`sampled` / `skipped` 必须诚实，报告不能把它写成逐行审查。
 - 静态分析不是编译器：跨仓库、运行时问题可能漏报。
 - 模型裁决可能主观；机器保留原始 handoff、候选 ID、contract 错误，便于人工复核。
 
-## 10. 扩展
+## 11. 扩展
 
 ### 加一个 section
 
@@ -307,7 +404,7 @@ docs/logistics/latest.md # 仅默认四模块完整时更新
 
 在 `lib/commands.js` 的 `createCommands` 加 definition；handler 只做确定性工作或注入主编派发消息。
 
-## 11. 已知风险
+## 12. 已知风险
 
 1. DSH 子代理模型选择未开启时，`models` 配置会静默回退父模型。
 2. Linux/macOS 没有安装 `node` 时，派发命令依赖 `process.execPath`；Desktop 内置 Node 路径可能不在 PATH。
@@ -315,20 +412,22 @@ docs/logistics/latest.md # 仅默认四模块完整时更新
 4. 审查期间源码变化会使证据过期；当前只在 `/logi-fix` 硬检查。
 5. 主编可能漏掉跨专家重复或证据冲突；`packet.md` 提供 hints，但不强制。
 6. `collect` 只做格式/完整性校验，不做语义质量判断。
-7. 大改动截断后可能漏掉重要文件；报告必须标明 omitted。
+7. 项目超过 `project.maxFiles` 或单元上限时可能截断/合并；报告必须标明 omitted 和单元标签。
 8. 没有机器门禁：是否阻塞合并由人和 CI 决定。
 
-## 12. 文件索引
+## 13. 文件索引
 
 - 入口：`lib/index.js`
 - 命令：`lib/commands.js`
+- 全项目规划：`lib/project.js`
 - 范围：`lib/scope.js`
 - 派发：`lib/dispatch.js`
-- handoff：`lib/handoffs.js`
+- handoff/单元覆盖：`lib/handoffs.js`
 - 裁决：`lib/verdict.js`
 - finding/ID/模块：`lib/findings.js`
 - 配置：`lib/config.js`、`lib/constants.js`
+- 日志：`lib/runlog.js`
 - CLI：`lib/cli/collect.mjs`、`bundle.mjs`、`verdict.mjs`
 - 专家 skill：`skills/logi-correctness|security|reliability|maintainability|perf/SKILL.md`
 - 修复 skill：`skills/logi-fix/SKILL.md`
-- 测试：`test/*.test.js`（67 个）
+- 测试：`test/*.test.js`（74 个）

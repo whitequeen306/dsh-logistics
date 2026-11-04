@@ -57,6 +57,20 @@ export function makeScope(root, experts = ['correctness', 'security']) {
   return createScope(scopeOptions(root, experts))
 }
 
+export function makeProjectScope(root, experts = ['correctness', 'security'], overrides = {}) {
+  return createScope(scopeOptions(root, experts, { mode: 'project', ...overrides }))
+}
+
+export function projectHandoff(expert, scope, findings = [], extra = {}) {
+  const units = Object.fromEntries(
+    (scope.project?.units ?? []).map((unit) => [
+      unit.id,
+      { status: 'reviewed', filesRead: unit.stats?.files ?? 0, notes: 'test coverage' },
+    ]),
+  )
+  return handoff(expert, findings, { units, ...extra })
+}
+
 export function handoff(expert, findings = [], extra = {}) {
   const info = EXPERT_BY_KEY[expert]
   const sections = Object.fromEntries(

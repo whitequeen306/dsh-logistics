@@ -113,14 +113,19 @@ test('/logi creates a four-expert pipeline scope and queues one dispatch', async
 
     assert.equal(result.kind, 'success')
     assert.match(result.text, /4 位专家/u)
+    assert.match(result.text, /全项目/u)
     assert.equal(messages.length, 1)
-    assert.match(messages[0].content[0].text, /后勤派发 · \/logi/u)
+    assert.match(messages[0].content[0].text, /项目后勤派发 · \/logi/u)
+    assert.match(messages[0].content[0].text, /全项目审查/u)
     assert.match(messages[0].content[0].text, /最多同时发 4 个 subagent/u)
     assert.match(messages[0].content[0].text, /logi-correctness/u)
 
     const scope = JSON.parse(readFileSync(join(latestRunDir(root), 'scope.json'), 'utf8'))
     assert.deepEqual(scope.experts, ['correctness', 'security', 'reliability', 'maintainability'])
     assert.equal(scope.schemaVersion, 2)
+    assert.equal(scope.mode, 'project')
+    assert.equal(scope.source, 'project')
+    assert.ok(scope.project.units.length >= 1)
 
     const runDir = latestRunDir(root)
     const events = readRunLog(runDir).map((entry) => entry.event)
@@ -143,11 +148,14 @@ test('a single-expert command creates one-expert scope and dispatch', async () =
 
     assert.equal(result.kind, 'success')
     assert.match(result.text, /正确性/u)
+    assert.match(result.text, /全项目/u)
     assert.equal(messages.length, 1)
-    assert.match(messages[0].content[0].text, /只运行 \*\*正确性（correctness）\*\*/u)
+    assert.match(messages[0].content[0].text, /项目后勤派发 · \/logi-correctness/u)
+    assert.match(messages[0].content[0].text, /correctness/u)
 
     const scope = JSON.parse(readFileSync(join(latestRunDir(root), 'scope.json'), 'utf8'))
     assert.deepEqual(scope.experts, ['correctness'])
+    assert.equal(scope.mode, 'project')
   } finally {
     cleanup(root)
   }
@@ -171,7 +179,7 @@ test('aborted and no-file runs return errors without queues', async () => {
       const emptyInvocation = invocation(empty)
       const emptyResult = await command.handler(emptyInvocation.invocation)
       assert.equal(emptyResult.kind, 'error')
-      assert.match(emptyResult.text, /没有检测到可分析的改动/u)
+      assert.match(emptyResult.text, /没有检测到可分析的项目文件/u)
       assert.equal(emptyInvocation.messages.length, 0)
     } finally {
       cleanup(empty)
