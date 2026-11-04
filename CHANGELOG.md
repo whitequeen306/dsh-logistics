@@ -2,6 +2,20 @@
 
 All notable changes to this project. Format follows [Keep a Changelog](https://keepachangelog.com/); versions use [SemVer](https://semver.org/).
 
+## [0.6.0] - 2026-11-04
+
+### Removed
+
+- **移除 `/logi-fix` 命令和 `logi-fix` skill**：插件不再派发独立 fixer，也不再维护 `selection.json`、修复白名单、逐条测试和失败回滚。需要修复时，把 `report.md` 或指定 finding 交给当前主模型即可；修复受 DSH 权限与审批约束。
+- 命令数从 7 个减为 6 个，skill 从 6 个减为 5 个；删除 `runFix`、`buildFixDispatch` 及相关测试。
+- 简化 `lib/verdict.js`，移除仅供修复选择使用的“最近完整 verdict”读取函数。
+
+### Changed
+
+- `kind` 仅保留报告分类语义：`direct` 表示可按报告直接修，`plan` 表示需要设计决策；插件不再执行修复。
+- 审查结束仍会询问“需要我帮你开始直接修复吗？还是你拿上报告去新开一个会话施行修复？”，但这里的“修复”指主模型直接处理，不再对应插件命令。
+- 测试调整为 76 个，文档和架构说明更新到 0.6.0。
+
 ## [0.5.1] - 2026-11-04
 
 ### Changed

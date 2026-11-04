@@ -1,6 +1,6 @@
-# dsh-logistics 架构与执行模型（0.5.1）
+# dsh-logistics 架构与执行模型（0.6.0）
 
-> 本文描述 **0.5.1 已实现**的结构，不是路线图。0.4.0 把审查范围从「工作区 diff / 最近提交」改成**整个项目**：`git ls-files` 全量清单 → 文件分类 → 模块切分 → 审查单元；每个专家覆盖全部单元，并用 handoff 的 `units` 映射声明 reviewed / sampled / skipped。0.5.0 把 `report.md` 定为核心交付物，要求每位专家另写报告，并由 `lib/report-check.js` 做 contract 校验；`/logi-fix` 只接受显式 ID。0.5.1 给 run 目录加命令后缀（`/logi` 为 `-master`，单专家为 `-<expert>`），并让 `/logi` 的 handoff 按专家分目录，旧平铺 run 仍可读。0.3.x 的主编模型、contract 校验、运行日志和修复白名单继续保留。评分、基线、门禁已在 0.2.0 删除。
+> 本文描述 **0.6.0 已实现**的结构，不是路线图。0.4.0 把审查范围从「工作区 diff / 最近提交」改成**整个项目**：`git ls-files` 全量清单 → 文件分类 → 模块切分 → 审查单元；每个专家覆盖全部单元，并用 handoff 的 `units` 映射声明 reviewed / sampled / skipped。0.5.0 把 `report.md` 定为核心交付物，要求每位专家另写报告，并由 `lib/report-check.js` 做 contract 校验。0.5.1 给 run 目录加命令后缀（`/logi` 为 `-master`，单专家为 `-<expert>`），并让 `/logi` 的 handoff 按专家分目录，旧平铺 run 仍可读。0.6.0 移除 `/logi-fix` 与独立 fixer，插件不提供写操作命令；审查子代理仍受 prompt 约束，需要修复时由用户把报告或 finding 交给主模型。0.3.x 的主编模型、contract 校验和运行日志继续保留。
 
 ## 1. 一句话模型
 
@@ -22,8 +22,8 @@
 
 | 层 | 文件 | 职责 | 调模型 |
 | --- | --- | --- | --- |
-| 注册层 | `lib/index.js` | 加载 6 个 skill，注册 7 个命令 | 否 |
-| 命令层 | `lib/commands.js` | 取 cwd、建 run、注入全项目派发、处理 `/logi-fix` | 否（只入队） |
+| 注册层 | `lib/index.js` | 加载 5 个 skill，注册 6 个命令 | 否 |
+| 命令层 | `lib/commands.js` | 取 cwd、建 run、注入全项目派发、生成运行回复 | 否（只入队） |
 | 项目层 | `lib/project.js` | 文件分类、模块归属、审查单元、上限与合并 | 否 |
 | 范围层 | `lib/scope.js` | git 清单、项目 scope 落盘、测试命令、模型路由 | 否 |
 | 路径层 | `lib/handoff-paths.js` | run 目录后缀、嵌套/平铺 handoff 路径、旧 run 兼容 | 否 |
@@ -32,7 +32,6 @@
 | 收集层 | `lib/handoffs.js`、`lib/cli/collect.mjs` | 校验 handoff、section 计数、单元覆盖、专家报告索引、候选材料 | 否 |
 | 报告层 | `lib/report-check.js`、`lib/test-command.js` | report.md / 专家报告 contract 校验、多测试命令展示 | 否 |
 | 裁决层 | `lib/verdict.js`、`lib/cli/verdict.mjs` | verdict contract 校验、稳定 ID、覆盖检查、报告校验 | 否 |
-| 修复层 | `lib/commands.js` `runFix`、`skills/logi-fix` | 从 verdict 选 direct finding，白名单/测试/回滚 | 是（单 child） |
 | 配置层 | `lib/config.js`、`lib/constants.js` | 忽略、上限、测试命令、模块显示名、专家模型路由 | 否 |
 | 日志层 | `lib/runlog.js` | `run.jsonl`、`dispatch.md`、`prompts/` | 否 |
 
@@ -70,7 +69,6 @@ cli → scope / handoffs / verdict
 | `/logi-reliability` | 单专家全项目审查 | 1 | 否 |
 | `/logi-maintainability` | 单专家全项目审查 | 1 | 否 |
 | `/logi-perf` | 单专家全项目审查 | 1 | 否 |
-| `/logi-fix <ID...>` | 按 ID 计划 / 执行 | 0 或 1 | 仅执行时，受限 |
 
 没有 `/logi-diff`，没有 `--diff`，没有“工作区模式”命令。`createScope` 内部保留 `mode='changes'` 仅用于旧测试与兼容调用；所有注册命令固定传 `mode:'project'`。
 
@@ -87,14 +85,9 @@ cli → scope / handoffs / verdict
 7. `agent.followup(...)` 注入下一轮 user 消息。
 8. 立即返回 `{kind:"success", text}`；回复把 `report.md` 标为“核心交付物”，并列出全部测试命令。
 
-### 4.2 修复 handler
+### 4.2 修复（插件外）
 
-`runFix`：
-
-- 无参数：直接报错，要求显式 ID；不再列出全部 direct 项。
-- `--dry-run <ID...>`：输出位置、白名单、测试命令、步骤；不建 fix 目录、不派发。
-- `<ID...>`：校验 schema、ID、`kind=direct`、非 `perf`、git 仓库、工作区干净、HEAD 未变；写 `selection.json`，派发一个 fixer。
-- 不支持 `--all`，不支持 apply-then-revert。
+插件不注册修复命令，也没有独立 fixer。审查结束后，用户可以把 `report.md` 或指定 finding ID 发给当前主模型继续处理。
 
 ## 5. 全项目范围
 
@@ -157,7 +150,7 @@ groupUnits:
 ```json
 {
   "schemaVersion": 2,
-  "version": "0.5.1",
+  "version": "0.6.0",
   "runId": "20261104-...",
   "mode": "project",
   "source": "project",
@@ -303,10 +296,6 @@ subagent({
   report.md              # 核心交付物：完整项目报告
 .logistics/latest.json   # 仅默认四模块完整时更新
 docs/logistics/latest.md # 仅默认四模块完整时更新
-.logistics/fixes/<fixRunId>/
-  selection.json
-  fix.json
-  fix-reverted.patch     # 仅失败回滚时出现
 ```
 
 ### 8.1.1 report.md 是核心交付物
@@ -347,7 +336,7 @@ docs/logistics/latest.md # 仅默认四模块完整时更新
 }
 ```
 
-- `kind: direct` 才允许 `/logi-fix`；`plan` 只出方案。
+- `kind` 只用于报告分类：`direct` 表示可按报告直接修，`plan` 表示需要设计决策；插件不执行修复。
 - 性能项永远是 `plan`。
 - 没有证据的 critical/high 会被降级；`fix` 不完整会被降为 `plan`。
 
@@ -355,7 +344,7 @@ docs/logistics/latest.md # 仅默认四模块完整时更新
 
 - ID：`PREFIX + sha1(expert|category|file|normalizeTitle(title))` 前 5 位；不含行号，同 run 冲突自动扩到 6–8 位。
 - 跨专家去重由**主编**做；`bundle.mjs` 只给 `duplicateHints`，不替主编删除。
-- 机器仍保证 ID 稳定，方便 `/logi-fix` 引用。
+- 机器仍保证 ID 稳定，方便报告、人工复核和主模型按 ID 修复。
 
 ### 8.4 单元覆盖
 
@@ -380,24 +369,21 @@ docs/logistics/latest.md # 仅默认四模块完整时更新
 - `scope.created` / `scope.empty`：命令建立 run 的事实快照；
 - `dispatch.queued` / `dispatch.accepted|failed`：派发消息是否成功入队；
 - `collect.completed` / `bundle.completed` / `verdict.validated`：CLI 的收集、打包、contract 校验结果；
-- 修复目录额外写 `fix.selection` / `fix.dispatch` / `fix.dispatch.accepted|failed`。
 
 同时写 `dispatch.md` 和 `prompts/<expert>.md`，保存实际发送的父/子 prompt。日志不含密钥，但 prompt 包含文件路径与范围。日志记录“发生了什么”，不替代 handoff 中的推理内容。
 
-## 9. 修复执行
+## 9. 修复（插件外）
 
-`/logi-fix` 是唯一写入口，串行、单 fixer：
+插件不提供写操作命令，也不派发 fixer。报告中的 finding 已包含位置、证据、影响与修复步骤；需要执行时，用户把 `report.md` 或指定 ID 交给主模型。
 
-1. 从最近完整 `verdict.json` 读 `direct` 项；没有则报错。
-2. 要求 git 仓库、工作区干净（生成物除外）、HEAD 未变。
-3. 写 `selection.json`，记录 verdictRunId、ID、白名单文件、测试命令。
-4. fixer 只改白名单，跑 `scope.testCommand`；失败先存 `fix-reverted.patch`，回滚该组，写 `fix.json`。
-5. 不 commit、不 push、不安装依赖、不联网；不做 `--all`。
+- 主模型修复受 DSH 的权限、沙箱和审批策略约束。
+- 修复前应由用户确认工作区状态、分支和测试命令。
+- 插件不保证修复正确性，也不替代 code review。
 
 ## 10. 只读与限制
 
-- 审查 child 有写工具，但 prompt 要求只读；真正的安全边界是**文件白名单 + 修复阶段串行 + 不自动提交**。
-- 审查阶段不改变工作区；源码在审查期间变化会让证据过期，`/logi-fix` 会拒绝。
+- 审查 child 有写工具，但 prompt 要求只读；没有独立只读文件系统隔离。插件没有写操作命令，但这不等于子代理在能力上不能写。
+- 审查阶段不改变工作区；源码在审查期间变化会让证据过期，当前没有硬性门禁，需要用户自行判断报告是否仍然适用。
 - 一个专家覆盖所有单元意味着大型项目只能做模式扫描 + 抽样；`sampled` / `skipped` 必须诚实，报告不能把它写成逐行审查。
 - 静态分析不是编译器：跨仓库、运行时问题可能漏报。
 - 模型裁决可能主观；机器保留原始 handoff、候选 ID、contract 错误，便于人工复核。
@@ -426,7 +412,7 @@ docs/logistics/latest.md # 仅默认四模块完整时更新
 1. DSH 子代理模型选择未开启时，`models` 配置会静默回退父模型。
 2. Linux/macOS 没有安装 `node` 时，派发命令依赖 `process.execPath`；Desktop 内置 Node 路径可能不在 PATH。
 3. 审查 child 的只读是 prompt 级；没有独立只读文件系统隔离。
-4. 审查期间源码变化会使证据过期；当前只在 `/logi-fix` 硬检查。
+4. 审查期间源码变化会使证据过期；插件没有硬性失效检查。
 5. 主编可能漏掉跨专家重复或证据冲突；`packet.md` 提供 hints，但不强制。
 6. `collect` 只做格式/完整性校验，不做语义质量判断。
 7. 项目超过 `project.maxFiles` 或单元上限时可能截断/合并；报告必须标明 omitted 和单元标签。
@@ -449,5 +435,4 @@ docs/logistics/latest.md # 仅默认四模块完整时更新
 - 日志：`lib/runlog.js`
 - CLI：`lib/cli/collect.mjs`、`bundle.mjs`、`verdict.mjs`
 - 专家 skill：`skills/logi-correctness|security|reliability|maintainability|perf/SKILL.md`
-- 修复 skill：`skills/logi-fix/SKILL.md`
-- 测试：`test/*.test.js`（81 个）
+- 测试：`test/*.test.js`（76 个）

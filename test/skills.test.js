@@ -13,14 +13,13 @@ function readSkill(name) {
   return parseSkillFile(readFileSync(join(skillsDir, name, 'SKILL.md'), 'utf8'), name)
 }
 
-test('ships exactly the six 0.5.1 skills', () => {
+test('ships exactly the five 0.6.0 skills', () => {
   const dirs = readdirSync(skillsDir, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
     .sort()
   assert.deepEqual(dirs, [
     'logi-correctness',
-    'logi-fix',
     'logi-maintainability',
     'logi-perf',
     'logi-reliability',
@@ -83,12 +82,5 @@ test('every specialist carries the shared handoff contract inline', () => {
     assert.match(parsed.content, /kind[^\n]*direct/iu)
     assert.match(parsed.content, /summary/iu)
     assert.doesNotMatch(parsed.content, /logi-core/u)
-  }
-})
-
-test('fix skill documents selection, whitelist, tests, rollback, and no commit', () => {
-  const content = readSkill('logi-fix').content
-  for (const token of ['selection.json', 'fix.json', 'fix-reverted.patch', 'whitelist', 'test', 'commit']) {
-    assert.match(content, new RegExp(token, 'iu'), token)
   }
 })

@@ -344,7 +344,7 @@ test('project verdict requires an aggregate report and every expert report', () 
   }
 })
 
-test('legacy 0.4 project verdicts stay fixable without expert reports', () => {
+test('legacy 0.4 project verdicts stay readable without expert reports', () => {
   const root = initRepo()
   try {
     const created = makeProjectScope(root, ['security'])

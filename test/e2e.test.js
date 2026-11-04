@@ -63,7 +63,7 @@ function securityFinding() {
   })
 }
 
-test('0.5.1 end-to-end: project dispatch -> handoff -> bundle -> verdict -> fix dry-run', async () => {
+test('0.6.0 end-to-end: project dispatch -> handoff -> bundle -> verdict', async () => {
   const root = initRepo()
   try {
     write(root, 'src/auth.js', "export function isAdmin(user) {\n  if (user.role = 'admin') {\n    return true\n  }\n  return false\n}\n")
@@ -109,7 +109,6 @@ test('0.5.1 end-to-end: project dispatch -> handoff -> bundle -> verdict -> fix 
       ['scope.created', 'dispatch.queued', 'dispatch.accepted', 'collect.completed', 'bundle.completed'],
     )
 
-    const verdictPath = join(runDir, 'verdict.json')
     const verdict = {
       schemaVersion: 2,
       runId: scope.runId,
@@ -131,34 +130,6 @@ test('0.5.1 end-to-end: project dispatch -> handoff -> bundle -> verdict -> fix 
     assert.equal(validateVerdict({ root, scope, verdict }).ok, true)
     assert.ok(readRunLog(runDir).some((entry) => entry.event === 'verdict.validated' && entry.ok === true))
 
-    const id = bundle.findings[0].id
-    const fix = createCommands({ pluginRoot }).find((command) => command.name === 'logi-fix')
-    const listed = invocation(root)
-    const listedResult = await fix.handler(listed.invocation)
-    assert.equal(listedResult.kind, 'error', listedResult.text)
-    assert.match(listedResult.text, /请提供要修复的 finding ID/u)
-
-    const dry = invocation(root, `--dry-run ${id}`)
-    const dryResult = await fix.handler(dry.invocation)
-    assert.equal(dryResult.kind, 'success', dryResult.text)
-    assert.match(dryResult.text, /修复计划/u)
-    assert.equal(dry.messages.length, 0)
-    assert.throws(() => readdirSync(join(root, '.logistics', 'fixes')), /ENOENT/u)
-    assert.ok(verdictPath.endsWith('verdict.json'))
-
-    const apply = invocation(root, id)
-    const applyResult = await fix.handler(apply.invocation)
-    assert.equal(applyResult.kind, 'success', applyResult.text)
-    assert.equal(apply.messages.length, 1)
-    const fixDispatch = apply.messages[0].content[0].text
-    assert.match(fixDispatch, /selection\.json/u)
-    assert.match(fixDispatch, /verdict\.json/u)
-    assert.match(fixDispatch, /fix\.json/u)
-    const fixDirs = readdirSync(join(root, '.logistics', 'fixes'))
-    const selection = JSON.parse(readFileSync(join(root, '.logistics', 'fixes', fixDirs[0], 'selection.json'), 'utf8'))
-    assert.equal(selection.verdictRunId, scope.runId)
-    assert.match(selection.head, /^[a-f0-9]{40}$/u)
-    assert.deepEqual(selection.ids, [id])
   } finally {
     cleanup(root)
   }
