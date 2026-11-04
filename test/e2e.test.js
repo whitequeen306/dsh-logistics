@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict'
-import { readFileSync, readdirSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { createCommands } from '../lib/commands.js'
 import { loadHandoffs } from '../lib/handoffs.js'
+import { readRunLog } from '../lib/runlog.js'
 import { validateVerdict } from '../lib/verdict.js'
 import {
   cleanup,
@@ -96,6 +97,11 @@ test('0.3.3 end-to-end: dispatch -> handoff -> bundle -> verdict -> fix dry-run'
     const bundle = JSON.parse(readFileSync(join(runDir, 'handoffs.json'), 'utf8'))
     assert.equal(bundle.findings.length, 1)
     assert.match(bundle.findings[0].id, /^SEC-[A-F0-9]{5,8}$/u)
+    assert.ok(existsSync(join(runDir, 'run.jsonl')))
+    assert.deepEqual(
+      readRunLog(runDir).map((entry) => entry.event),
+      ['scope.created', 'dispatch.queued', 'dispatch.accepted', 'collect.completed', 'bundle.completed'],
+    )
 
     const verdictPath = join(runDir, 'verdict.json')
     const verdict = {
@@ -116,6 +122,7 @@ test('0.3.3 end-to-end: dispatch -> handoff -> bundle -> verdict -> fix dry-run'
     assert.equal(validated.code, 0, validated.output)
     assert.match(validated.output, /findings: 1/u)
     assert.equal(validateVerdict({ root, scope, verdict }).ok, true)
+    assert.ok(readRunLog(runDir).some((entry) => entry.event === 'verdict.validated' && entry.ok === true))
 
     const id = bundle.findings[0].id
     const fix = createCommands({ pluginRoot }).find((command) => command.name === 'logi-fix')

@@ -260,6 +260,17 @@ docs/logistics/latest.md # 仅默认四模块完整时更新
 - 单模块也算 complete，但**不可发布 latest**；
 - `latest` 只由默认四模块完整覆盖更新。
 
+### 7.6 运行日志
+
+每个 run 目录写 `run.jsonl`（每行 `{ts,event,...}`），由 `lib/runlog.js` 追加：
+
+- `scope.created` / `scope.empty`：命令建立 run 的事实快照；
+- `dispatch.queued` / `dispatch.accepted|failed`：派发消息是否成功入队；
+- `collect.completed` / `bundle.completed` / `verdict.validated`：CLI 的收集、打包、contract 校验结果；
+- 修复目录额外写 `fix.selection` / `fix.dispatch` / `fix.dispatch.accepted|failed`。
+
+同时写 `dispatch.md` 和 `prompts/<expert>.md`，保存实际发送的父/子 prompt。日志不含密钥，但 prompt 包含文件路径与范围。日志记录“发生了什么”，不替代 handoff 中的推理内容。
+
 ## 8. 修复执行
 
 `/logi-fix` 是唯一写入口，串行、单 fixer：

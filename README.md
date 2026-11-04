@@ -90,6 +90,27 @@ dsh --profile web --dump-config | grep -A2 dsh-logistics
 - 没有 `subagent` 工具时**不会**退化成父代理自己审：直接报告限制并停止，避免把单会话猜测包装成专家结论。
 - 机器不生成最终报告，也不做质量门禁；`collect.mjs` 的 `complete` 只表示“证据收齐”，不表示“审查通过”。
 
+## 运行日志
+
+每次 `/logi*` 都会在 run 目录写一份可追溯日志：
+
+```text
+.logistics/runs/<runId>/
+  run.jsonl              # 每行一个事件：scope.created、dispatch.queued、
+                         # dispatch.accepted/failed、collect.completed、
+                         # bundle.completed、verdict.validated
+  dispatch.md            # 实际注入给主会话模型的派发消息
+  prompts/<expert>.md    # 每位专家实际收到的 child prompt
+  scope.json             # 本次事实快照
+  handoff/<expert>.json  # 子代理原始输出
+  verdict.json           # 主编裁决（模型写）
+  report.md              # 主编报告（模型写）
+```
+
+`/logi-fix` 在 `.logistics/fixes/<fixRunId>/` 写同样的 `run.jsonl`、`dispatch.md` 和 `selection.json`。日志只记录命令元数据、路径、prompt、覆盖状态和 contract 结果，不写入 API key；prompt 会包含文件路径和审查范围，分享日志前请先检查是否含敏感路径。
+
+`collect.mjs` / `bundle.mjs` / `verdict.mjs` 由主编模型调用，也会把结果追加到同一个 `run.jsonl`。因此一次真实运行结束后，`run.jsonl` 能还原“派发了什么、专家有没有交、contract 是否通过”，但不能替代子代理的推理过程；推理过程在 `handoff/` 和 `prompts/` 中。
+
 ## 报告
 
 ```text
@@ -199,7 +220,7 @@ docs/logistics/latest.md      # 仅默认四模块完整时更新
 ## 开发
 
 ```bash
-npm test          # node --test，67 个测试（含端到端 contract 冒烟）
+npm test          # node --test，69 个测试（含端到端 contract 冒烟与运行日志）
 npm run check     # 语法检查 + 全部测试
 ```
 

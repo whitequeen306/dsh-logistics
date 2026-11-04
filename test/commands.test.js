@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { createCommands } from '../lib/commands.js'
+import { readRunLog } from '../lib/runlog.js'
 import { buildReport } from '../lib/report.js'
 import {
   cleanup,
@@ -82,7 +83,7 @@ function makeCompleteReport(root) {
   return Object.assign(report, { created })
 }
 
-test('registers exactly seven 0.3.3 commands', () => {
+test('registers exactly seven commands', () => {
   const commands = createCommands({ pluginRoot })
   assert.deepEqual(
     commands.map((command) => command.name),
@@ -120,6 +121,14 @@ test('/logi creates a four-expert pipeline scope and queues one dispatch', async
     const scope = JSON.parse(readFileSync(join(latestRunDir(root), 'scope.json'), 'utf8'))
     assert.deepEqual(scope.experts, ['correctness', 'security', 'reliability', 'maintainability'])
     assert.equal(scope.schemaVersion, 2)
+
+    const runDir = latestRunDir(root)
+    const events = readRunLog(runDir).map((entry) => entry.event)
+    assert.deepEqual(events, ['scope.created', 'dispatch.queued', 'dispatch.accepted'])
+    assert.ok(existsSync(join(runDir, 'dispatch.md')))
+    for (const expert of scope.experts) {
+      assert.ok(existsSync(join(runDir, 'prompts', `${expert}.md`)), expert)
+    }
   } finally {
     cleanup(root)
   }

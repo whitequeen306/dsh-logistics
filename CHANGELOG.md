@@ -2,6 +2,13 @@
 
 All notable changes to this project. Format follows [Keep a Changelog](https://keepachangelog.com/); versions use [SemVer](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- 运行日志：每个 run 目录写 `run.jsonl`（scope/dispatch/collect/bundle/verdict 事件）、`dispatch.md` 和 `prompts/<expert>.md`；`/logi-fix` 目录写 `fix.selection` / `fix.dispatch` 事件。日志不含密钥，用于用户自己运行后追溯“派发了什么、专家是否交付、contract 是否通过”。
+- 69 个测试（新增 `test/runlog.test.js` 和命令/端到端日志断言）。
+
 ## [0.3.4] - 2026-11-04
 
 ### Fixed
