@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import test from 'node:test'
-import { createScope } from '../lib/scope.js'
+import { createScope, detectTestCommands } from '../lib/scope.js'
 import {
   cleanup,
   commitAll,
@@ -183,6 +183,21 @@ test('uses the configured test command and maxFiles cap', () => {
     assert.equal(created.scope.stats.analyzedFiles, 1)
     assert.equal(created.scope.stats.truncated, true)
     assert.ok(created.scope.warnings.some((warning) => warning.includes('maxFiles=1')))
+  } finally {
+    cleanup(root)
+  }
+})
+
+test('detects test commands in sibling Maven, Python, and frontend modules', () => {
+  const root = tempDir('dsh-logi-tests-')
+  try {
+    write(root, 'backend/pom.xml', '<project/>\n')
+    write(root, 'backend-agent/pyproject.toml', '[project]\nname = "agent"\n')
+    write(root, 'frontend/package.json', JSON.stringify({ scripts: { test: 'vitest run' } }, null, 2))
+    const commands = detectTestCommands(root, {})
+    assert.ok(commands.some((item) => item.command === 'mvn -q -f backend/pom.xml test'))
+    assert.ok(commands.some((item) => item.command === 'pytest -q backend-agent'))
+    assert.ok(commands.some((item) => item.command === 'npm --prefix frontend test'))
   } finally {
     cleanup(root)
   }

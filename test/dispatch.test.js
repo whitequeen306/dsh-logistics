@@ -96,3 +96,13 @@ test('model routes are rendered only when configured', () => {
   const withoutRoute = buildProjectDispatch({ command: '/logi', scope, pluginRoot: 'C:/plugin' })
   assert.match(withoutRoute, /父会话当前模型/u)
 })
+
+test('a perf run does not claim the performance dimension was unrun', () => {
+  const text = buildProjectDispatch({
+    command: '/logi-perf',
+    scope: { ...scope, experts: ['perf'] },
+    pluginRoot: 'C:/plugin',
+  })
+  assert.match(text, /本次已运行性能专家/u)
+  assert.doesNotMatch(text, /性能维度未运行/u)
+})

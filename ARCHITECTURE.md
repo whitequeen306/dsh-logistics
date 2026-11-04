@@ -1,6 +1,6 @@
-# dsh-logistics 架构与执行模型（0.4.0）
+# dsh-logistics 架构与执行模型（0.5.0）
 
-> 本文描述 **0.4.0 已实现**的结构，不是路线图。0.4.0 把审查范围从「工作区 diff / 最近提交」改成**整个项目**：`git ls-files` 全量清单 → 文件分类 → 模块切分 → 审查单元；每个专家覆盖全部单元，并用 handoff 的 `units` 映射声明 reviewed / sampled / skipped。0.3.x 的主编模型、contract 校验、运行日志和修复白名单继续保留。评分、基线、门禁已在 0.2.0 删除。
+> 本文描述 **0.5.0 已实现**的结构，不是路线图。0.4.0 把审查范围从「工作区 diff / 最近提交」改成**整个项目**：`git ls-files` 全量清单 → 文件分类 → 模块切分 → 审查单元；每个专家覆盖全部单元，并用 handoff 的 `units` 映射声明 reviewed / sampled / skipped。0.5.0 把 `report.md` 定为核心交付物，要求每位专家另写 `handoff/<expert>.md`，并由 `lib/report-check.js` 做 contract 校验；`/logi-fix` 只接受显式 ID。0.3.x 的主编模型、contract 校验、运行日志和修复白名单继续保留。评分、基线、门禁已在 0.2.0 删除。
 
 ## 1. 一句话模型
 
@@ -8,11 +8,11 @@
 /logi-* 命令
   → 确定性 scope.json（全项目文件、模块、审查单元、测试命令、模型路由）
   → 主会话模型（主编）读 scope，派发专家
-  → 每位专家一个只读 child，覆盖全部单元，写 handoff/<expert>.json
+  → 每位专家一个只读 child，覆盖全部单元，写 handoff/<expert>.json + handoff/<expert>.md
   → collect（盘点专家 + 单元覆盖，不是质量门禁）
   → bundle（候选材料 + 稳定 ID + 单元 × 专家矩阵）
   → 主会话模型合并/去重/定级/取舍，写 verdict.json + report.md
-  → verdict.mjs 校验 contract（不判断内容好坏）
+  → verdict.mjs 校验 contract（含 report.md 与专家报告；不判断内容好坏）
   → 默认四模块完整时才更新 latest
 ```
 
@@ -28,8 +28,9 @@
 | 范围层 | `lib/scope.js` | git 清单、项目 scope 落盘、测试命令、模型路由 | 否 |
 | 派发层 | `lib/dispatch.js` | 主编协议、child prompt、collect/bundle/verdict 命令 | 否 |
 | 专家层 | `skills/logi-*/SKILL.md` + `subagent` | 每位专家一个只读 child；共享契约内联在专家 skill 中 | 是 |
-| 收集层 | `lib/handoffs.js`、`lib/cli/collect.mjs` | 校验 handoff、section 计数、单元覆盖、候选材料 | 否 |
-| 裁决层 | `lib/verdict.js`、`lib/cli/verdict.mjs` | verdict contract 校验、稳定 ID、覆盖检查 | 否 |
+| 收集层 | `lib/handoffs.js`、`lib/cli/collect.mjs` | 校验 handoff、section 计数、单元覆盖、专家报告索引、候选材料 | 否 |
+| 报告层 | `lib/report-check.js`、`lib/test-command.js` | report.md / 专家报告 contract 校验、多测试命令展示 | 否 |
+| 裁决层 | `lib/verdict.js`、`lib/cli/verdict.mjs` | verdict contract 校验、稳定 ID、覆盖检查、报告校验 | 否 |
 | 修复层 | `lib/commands.js` `runFix`、`skills/logi-fix` | 从 verdict 选 direct finding，白名单/测试/回滚 | 是（单 child） |
 | 配置层 | `lib/config.js`、`lib/constants.js` | 忽略、上限、测试命令、模块显示名、专家模型路由 | 否 |
 | 日志层 | `lib/runlog.js` | `run.jsonl`、`dispatch.md`、`prompts/` | 否 |
@@ -68,7 +69,7 @@ cli → scope / handoffs / verdict
 | `/logi-reliability` | 单专家全项目审查 | 1 | 否 |
 | `/logi-maintainability` | 单专家全项目审查 | 1 | 否 |
 | `/logi-perf` | 单专家全项目审查 | 1 | 否 |
-| `/logi-fix` | 列出 / 计划 / 执行 | 0 或 1 | 仅执行时，受限 |
+| `/logi-fix <ID...>` | 按 ID 计划 / 执行 | 0 或 1 | 仅执行时，受限 |
 
 没有 `/logi-diff`，没有 `--diff`，没有“工作区模式”命令。`createScope` 内部保留 `mode='changes'` 仅用于旧测试与兼容调用；所有注册命令固定传 `mode:'project'`。
 
@@ -81,15 +82,15 @@ cli → scope / handoffs / verdict
 3. `loadConfig(root)` 合并 `.logistics/config.json`，包含 `project` 上限和 `models` 路由。
 4. `createScope({ cwd, command, experts, notes, config, mode: 'project' })` 写 `.logistics/runs/<runId>/scope.json`。
 5. 没有任何可分析文件时返回中文错误，不派发。
-6. 生成 `buildProjectDispatch`（内含逐字 child prompt、单元清单、模型路由、collect/bundle/verdict 命令）。
+6. 生成 `buildProjectDispatch`（内含逐字 child prompt、单元清单、模型路由、collect/bundle/verdict 命令、report.md 与专家报告要求）。
 7. `agent.followup(...)` 注入下一轮 user 消息。
-8. 立即返回 `{kind:"success", text}`。
+8. 立即返回 `{kind:"success", text}`；回复把 `report.md` 标为“核心交付物”，并列出全部测试命令。
 
 ### 4.2 修复 handler
 
 `runFix`：
 
-- 无参数：列出最近一份**通过 contract 校验且覆盖完整**的 `verdict.json` 中的 `direct` ID。
+- 无参数：直接报错，要求显式 ID；不再列出全部 direct 项。
 - `--dry-run <ID...>`：输出位置、白名单、测试命令、步骤；不建 fix 目录、不派发。
 - `<ID...>`：校验 schema、ID、`kind=direct`、非 `perf`、git 仓库、工作区干净、HEAD 未变；写 `selection.json`，派发一个 fixer。
 - 不支持 `--all`，不支持 apply-then-revert。
@@ -155,7 +156,7 @@ groupUnits:
 ```json
 {
   "schemaVersion": 2,
-  "version": "0.4.0",
+  "version": "0.5.0",
   "runId": "20261104-...",
   "mode": "project",
   "source": "project",
@@ -258,6 +259,7 @@ subagent({
 - `units` 必须包含**所有** `project.units` id；缺失/非法 → handoff invalid。
 - `status` 只能是 `reviewed / sampled / skipped`；任一 `skipped` 会把 handoff 标为 `partial`，collect 不 complete。
 - `sampled` 算已覆盖，但报告必须把它写成“抽样”而不是“逐行审查”。
+- 每位专家还必须写 `handoff/<expert>.md`（>=500 字符、有 Markdown 标题、覆盖范围与发现、抽样/未验证说明）；总报告必须索引这份专家报告。
 - `sections` 的每个计数必须等于该 section 的 findings 条数；未知 section、负数、缺失 section 都判无效。
 - findings 数量超过 `scope.maxFindings`（默认 12）会被判无效，不静默截断。
 
@@ -293,10 +295,11 @@ subagent({
   prompts/<expert>.md
   run.jsonl
   handoff/<expert>.json
+  handoff/<expert>.md    # 每位专家的独立报告
   handoffs.json          # bundle：候选 finding + 专家/单元覆盖
   packet.md              # 给主编的候选材料 + 单元 × 专家矩阵
-  verdict.json           # 主编裁决
-  report.md              # 人读报告
+  verdict.json           # 主编裁决（机器校验 contract）
+  report.md              # 核心交付物：完整项目报告
 .logistics/latest.json   # 仅默认四模块完整时更新
 docs/logistics/latest.md # 仅默认四模块完整时更新
 .logistics/fixes/<fixRunId>/
@@ -304,6 +307,19 @@ docs/logistics/latest.md # 仅默认四模块完整时更新
   fix.json
   fix-reverted.patch     # 仅失败回滚时出现
 ```
+
+### 8.1.1 report.md 是核心交付物
+
+`lib/report-check.js` 的 `validateReport({scope, verdict})` 只对 `mode === 'project'` 运行，检查：
+
+- `scope.output.reportMarkdown` 存在，trim 后至少 1200 字符；
+- 含“一句话结论 / 覆盖 / 发现或问题 / 修复 / 缺口或未验证”章节；
+- 出现全部 `scope.project.units[].id`；
+- verdict 有 findings 时，报告至少出现一个 `file:line`；
+- 每位 expected 专家的 `handoff/<expert>.md` 存在、至少 500 字符、有 Markdown 标题；
+- 总报告包含每位专家的 `handoff/<expert>.md` 索引。
+
+任一项失败，`verdict.mjs` 返回非零，run 不算完成，也不会更新 latest。`report.md` 不是 `verdict.json` 的附属摘要，而是最终给用户阅读和带走的产物。
 
 ### 8.2 finding
 
@@ -423,6 +439,8 @@ docs/logistics/latest.md # 仅默认四模块完整时更新
 - 范围：`lib/scope.js`
 - 派发：`lib/dispatch.js`
 - handoff/单元覆盖：`lib/handoffs.js`
+- 报告契约：`lib/report-check.js`
+- 测试命令展示：`lib/test-command.js`
 - 裁决：`lib/verdict.js`
 - finding/ID/模块：`lib/findings.js`
 - 配置：`lib/config.js`、`lib/constants.js`
@@ -430,4 +448,4 @@ docs/logistics/latest.md # 仅默认四模块完整时更新
 - CLI：`lib/cli/collect.mjs`、`bundle.mjs`、`verdict.mjs`
 - 专家 skill：`skills/logi-correctness|security|reliability|maintainability|perf/SKILL.md`
 - 修复 skill：`skills/logi-fix/SKILL.md`
-- 测试：`test/*.test.js`（74 个）
+- 测试：`test/*.test.js`（78 个）

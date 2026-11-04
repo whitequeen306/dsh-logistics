@@ -1,15 +1,18 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { DEFAULT_EXPERTS } from '../lib/constants.js'
 import { validateVerdict } from '../lib/verdict.js'
 import {
+  aggregateReport,
   cleanup,
   handoff,
   initRepo,
+  makeProjectScope,
   makeScope,
+  projectHandoff,
   runCli,
   sampleFinding,
   write,
@@ -302,6 +305,61 @@ test('verdict rejects missing coverage and duplicate IDs', () => {
     assert.equal(result.ok, false)
     assert.match(result.errors.join('\n'), /重复 id/u)
     assert.equal(result.verdict.coverage.complete, false)
+  } finally {
+    cleanup(root)
+  }
+})
+
+test('project verdict requires an aggregate report and every expert report', () => {
+  const root = initRepo()
+  try {
+    const created = makeProjectScope(root, ['security'])
+    write(created.runDir, 'handoff/security.json', JSON.stringify(projectHandoff('security', created.scope), null, 2))
+    const verdict = {
+      schemaVersion: 2,
+      runId: created.scope.runId,
+      coverage: { expected: ['security'], received: ['security'], missing: [], complete: true },
+      findings: [],
+    }
+
+    const missing = validateVerdict({ root, scope: created.scope, verdict })
+    assert.equal(missing.ok, false)
+    assert.match(missing.errors.join('\n'), /缺少总报告/u)
+
+    write(created.runDir, 'report.md', aggregateReport(created.scope))
+    const valid = validateVerdict({ root, scope: created.scope, verdict })
+    assert.equal(valid.ok, true, valid.errors.join('\n'))
+
+    rmSync(join(created.runDir, 'handoff/security.md'))
+    const noExpert = validateVerdict({ root, scope: created.scope, verdict })
+    assert.equal(noExpert.ok, false)
+    assert.match(noExpert.errors.join('\n'), /缺少专家报告/u)
+
+    write(created.runDir, 'handoff/security.md', '# 太短')
+    const shortExpert = validateVerdict({ root, scope: created.scope, verdict })
+    assert.equal(shortExpert.ok, false)
+    assert.match(shortExpert.errors.join('\n'), /过短/u)
+  } finally {
+    cleanup(root)
+  }
+})
+
+test('legacy 0.4 project verdicts stay fixable without expert reports', () => {
+  const root = initRepo()
+  try {
+    const created = makeProjectScope(root, ['security'])
+    created.scope.version = '0.4.0'
+    write(created.runDir, 'handoff/security.json', JSON.stringify(projectHandoff('security', created.scope), null, 2))
+    write(created.runDir, 'report.md', aggregateReport(created.scope))
+    const verdict = {
+      schemaVersion: 2,
+      runId: created.scope.runId,
+      coverage: { expected: ['security'], received: ['security'], missing: [], complete: true },
+      findings: [],
+    }
+    const result = validateVerdict({ root, scope: created.scope, verdict })
+    assert.equal(result.ok, true, result.errors.join('\n'))
+    assert.match(result.warnings.join('\n'), /旧版 0.4\.x 运行没有专家报告/u)
   } finally {
     cleanup(root)
   }

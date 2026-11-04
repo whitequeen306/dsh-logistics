@@ -8,6 +8,7 @@ import { loadHandoffs } from '../lib/handoffs.js'
 import { readRunLog } from '../lib/runlog.js'
 import { validateVerdict } from '../lib/verdict.js'
 import {
+  aggregateReport,
   cleanup,
   commitAll,
   initRepo,
@@ -62,7 +63,7 @@ function securityFinding() {
   })
 }
 
-test('0.4.0 end-to-end: project dispatch -> handoff -> bundle -> verdict -> fix dry-run', async () => {
+test('0.5.0 end-to-end: project dispatch -> handoff -> bundle -> verdict -> fix dry-run', async () => {
   const root = initRepo()
   try {
     write(root, 'src/auth.js', "export function isAdmin(user) {\n  if (user.role = 'admin') {\n    return true\n  }\n  return false\n}\n")
@@ -123,6 +124,7 @@ test('0.4.0 end-to-end: project dispatch -> handoff -> bundle -> verdict -> fix 
       dropped: [],
     }
     write(runDir, 'verdict.json', JSON.stringify(verdict, null, 2))
+    write(runDir, 'report.md', aggregateReport(scope, [bundle.findings[0]]))
     const validated = runCli(pluginRoot, 'verdict.mjs', ['--run', runDir])
     assert.equal(validated.code, 0, validated.output)
     assert.match(validated.output, /findings: 1/u)
@@ -133,8 +135,8 @@ test('0.4.0 end-to-end: project dispatch -> handoff -> bundle -> verdict -> fix 
     const fix = createCommands({ pluginRoot }).find((command) => command.name === 'logi-fix')
     const listed = invocation(root)
     const listedResult = await fix.handler(listed.invocation)
-    assert.equal(listedResult.kind, 'success', listedResult.text)
-    assert.match(listedResult.text, new RegExp(id, 'u'))
+    assert.equal(listedResult.kind, 'error', listedResult.text)
+    assert.match(listedResult.text, /请提供要修复的 finding ID/u)
 
     const dry = invocation(root, `--dry-run ${id}`)
     const dryResult = await fix.handler(dry.invocation)

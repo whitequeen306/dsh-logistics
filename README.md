@@ -4,17 +4,23 @@
 
 安装后获得一组 `/logi-*` 命令：先把**整个项目**做成确定性的文件清单和审查单元，再让专家子代理逐单元审查，最后由**你当前的主会话模型**担任主编，合并证据、定级、写一份完整的项目报告。机器只负责事实、范围、收集和 contract 校验，不替你打分或做质量裁决。
 
-> 0.4.0 起，审查命令只做**全项目审查**，不再审查工作区 diff 或最近一次提交；也没有 `/logi-diff` 或 `--diff`。`/logi-fix` 仍然只修你明确选择的 `direct` 问题。
+> 0.5.0 起，审查命令只做**全项目审查**，不再审查工作区 diff 或最近一次提交；也没有 `/logi-diff` 或 `--diff`。`/logi-fix` 只按你明确给出的问题 ID 修复 `direct` 项。
 >
-> 从 CodeCortexLoop（MIT，原仓库留存于 [master 分支](https://github.com/whitequeen306/dsh-logistics/tree/master)）迁移而来。0.2.0 删除评分、基线与门禁；0.3.0 起改为「主编模型 + 薄机器层」；0.4.0 把范围从改动集改成整个项目。设计记录见 [MODULE-DECISION.md](./MODULE-DECISION.md)。
+> 从 CodeCortexLoop（MIT，原仓库留存于 [master 分支](https://github.com/whitequeen306/dsh-logistics/tree/master)）迁移而来。0.2.0 删除评分、基线与门禁；0.3.0 起改为「主编模型 + 薄机器层」；0.4.0 把范围从改动集改成整个项目；0.5.0 把 `report.md` 定为唯一核心交付物，并要求每位专家单独写报告。设计记录见 [MODULE-DECISION.md](./MODULE-DECISION.md)。
+
+## 核心交付物
+
+每次审查的最终产品是 **`.logistics/runs/<runId>/report.md`**：它必须能独立交给用户阅读，包含项目总览、单元 × 专家覆盖矩阵、按模块组织的问题、证据、修复顺序与覆盖缺口。`verdict.json` 只是机器判决和 `/logi-fix` 的输入，不能替代报告。
+
+每位专家还会写一份自己的 **`handoff/<expert>.md`**；总报告必须索引这些专家报告。报告缺失、过短或缺少关键章节时，`verdict.mjs` 会拒绝该次 run。
 
 ## 它能做什么
 
 - **审查整个项目**：用 `git ls-files` 收集受版本控制（以及未忽略）的源码、配置和构建文件，按模块切成最多 12 个审查单元；不再只看最后一次提交。
-- **一份项目报告**：报告先给项目总览和「单元 × 专家」覆盖矩阵，再按模块列出问题；哪个单元没覆盖、哪个专家失败，都会明确写出来。
+- **一份核心项目报告**：报告先给项目总览和「单元 × 专家」覆盖矩阵，再按模块列出问题；哪个单元没覆盖、哪个专家失败，都会明确写出来。每位专家另有独立 Markdown 报告。
 - **五个专家，按后果分工**：正确性、安全、健壮性（错误处理 + 测试）、可维护性（简化 + 清理）、性能（可选）。默认跑前四个。
 - **证据优先**：问题必须有位置、证据、触发路径和影响；没有证据的严重问题会被降级，不会靠“感觉”报高优。
-- **可选择修复**：报告中的 `direct` 项可以用 `/logi-fix <ID>` 交给一个串行 fixer；默认先出计划，真正执行前要求干净工作区、文件白名单、测试与失败回滚。
+- **可选择修复**：报告中的 `direct` 项可以用 `/logi-fix <ID>` 交给一个串行 fixer；可先用 `--dry-run` 只出计划，真正执行前要求干净工作区、文件白名单、逐条测试与失败回滚。
 - **DSH 原生**：命令由插件注册，专家通过内置 `subagent` 工具拉起；纯 ESM、零运行时依赖，不 import `@deepseek-ai/*`。
 
 ## 安装
@@ -32,7 +38,7 @@ C:\path\to\dsh-logistics
 **CLI / 非桌面 profile**：
 
 ```bash
-dsh plugin --profile web add dsh-logistics@0.4.0
+dsh plugin --profile web add dsh-logistics@0.5.0
 dsh plugin --profile web add "C:/path/to/dsh-logistics"   # 本地开发
 dsh --profile web --dump-config | grep -A2 dsh-logistics
 ```
@@ -47,8 +53,7 @@ dsh --profile web --dump-config | grep -A2 dsh-logistics
 | `/logi-reliability` | 只跑健壮性专家，仍然覆盖整个项目 |
 | `/logi-maintainability` | 只跑可维护性专家，仍然覆盖整个项目 |
 | `/logi-perf` | 只跑性能专家，仍然覆盖整个项目 |
-| `/logi-fix` | 查看最近完整报告中的可执行修复项 |
-| `/logi-fix <ID...>` | 执行指定 `direct` 修复项 |
+| `/logi-fix <ID...>` | 按报告中的 ID 执行指定 `direct` 修复项 |
 | `/logi-fix --dry-run <ID...>` | 只出修复计划，不改源码 |
 
 所有审查命令都支持在命令后补充关注点：
@@ -57,7 +62,9 @@ dsh --profile web --dump-config | grep -A2 dsh-logistics
 /logi 优先看鉴权、支付回调、数据库迁移和前端权限判断
 ```
 
-`/logi-fix` 不支持 `--all`：一次只修你明确选择的 ID。`plan` 类型（需要设计决策）和性能项不会被自动执行。
+`/logi-fix` 必须带 ID，不支持无参数列出，也不支持 `--all`：一次只修你明确选择的 ID。`plan` 类型（需要设计决策）和性能项不会被自动执行。
+
+每次审查（包括单专家命令）结束时，模型必须单独问一句：**“需要我帮你开始直接修复吗？还是你拿上报告去新开一个会话施行修复？”**
 
 ## 工作方式
 
@@ -86,7 +93,7 @@ dsh --profile web --dump-config | grep -A2 dsh-logistics
    │     verdict.mjs 只校验 contract，不判断内容好坏
    │
    └─ 6. 修复（可选）
-         /logi-fix 从最近一份完整 verdict.json 读取 direct 项
+         /logi-fix 按显式 ID 从最近一份完整 verdict.json 读取 direct 项
 ```
 
 关键约束：
@@ -143,8 +150,9 @@ dsh --profile web --dump-config | grep -A2 dsh-logistics
   prompts/<expert>.md    # 每位专家实际收到的 child prompt
   scope.json             # 本次项目清单与审查单元
   handoff/<expert>.json  # 子代理原始输出
-  verdict.json           # 主编裁决（模型写）
-  report.md              # 主编报告（模型写）
+  handoff/<expert>.md    # 每位专家的独立 Markdown 报告（模型写）
+  verdict.json           # 主编裁决（机器校验 contract）
+  report.md              # 核心交付物：完整项目报告（模型写）
 ```
 
 `/logi-fix` 在 `.logistics/fixes/<fixRunId>/` 写同样的 `run.jsonl`、`dispatch.md` 和 `selection.json`。日志只记录命令元数据、路径、prompt、覆盖状态和 contract 结果，不写入 API key；prompt 会包含文件路径和审查范围，分享日志前请先检查是否含敏感路径。
@@ -164,10 +172,11 @@ units:
   runs/<runId>/
     scope.json
     handoff/<expert>.json
+    handoff/<expert>.md       # 每位专家的独立报告
     handoffs.json             # bundle 生成的候选材料索引
     packet.md                 # 给主编的候选材料 + 单元 × 专家矩阵
     verdict.json              # 主编裁决（机器只校验 contract）
-    report.md                 # 人读的项目报告
+    report.md                 # 核心交付物：人读的完整项目报告
   latest.json
   fixes/<fixRunId>/
     selection.json
@@ -183,6 +192,9 @@ docs/logistics/latest.md      # 仅默认四模块完整时更新
 - **按模块分组的问题**：标题、位置、证据、影响、修复步骤、涉及文件、建议测试。
 - **未覆盖维度**：哪些单元只 sampled、哪些 skipped、哪些 handoff 失败/缺失。
 - **建议修复顺序**：同文件合并、根因先行、可维护性单独批次、性能单独批次。
+- **专家报告索引**：每位专家的 `handoff/<expert>.md` 路径与一句话结论；每位专家另有独立报告。
+
+`report.md` 是核心交付物；`verdict.mjs` 会检查它是否存在、长度、关键章节、是否出现全部单元 ID、finding 是否有 `file:line`，以及专家报告是否存在且被总报告索引。报告不达标时，该次 run 不能算完成，也不会更新 `latest`。
 
 每个 finding 有稳定 ID，例如 `SEC-4F2A1`。ID 由 `专家 | 类别 | 文件 | 归一化标题` 计算，**不含行号**；代码移动不会让同一个问题换 ID。跨专家报告同一根因时，由主编决定保留哪一条，其余写入 `verdict.json` 的 `dropped`。
 
@@ -200,7 +212,7 @@ docs/logistics/latest.md      # 仅默认四模块完整时更新
 
 `/logi-fix` 是唯一的写操作入口，默认安全优先：
 
-1. **列出**：不带参数时，只列出最近一份完整 `verdict.json` 中的 `direct` ID，不改任何文件。
+1. **必须给 ID**：不带参数会直接报错，不提供“列出全部 direct 项”的入口。
 2. **计划**：`--dry-run <ID...>` 输出每个 ID 的位置、白名单文件、测试和步骤。
 3. **执行**：带 ID 且不带 `--dry-run` 时，要求：
    - 最近 `verdict.json` 通过 contract 校验、`schemaVersion = 2` 且覆盖完整；
@@ -208,7 +220,7 @@ docs/logistics/latest.md      # 仅默认四模块完整时更新
    - 判决生成后 HEAD 未变化（否则证据可能过期）；
    - ID 存在、`kind = direct`、不属于性能模块。
 4. 通过后创建 `.logistics/fixes/<fixRunId>/selection.json`，派发**一个** fixer 子代理。
-5. fixer 只改白名单文件，跑 `scope.testCommand`；失败时保存 `fix-reverted.patch`、回滚该组改动，并在 `fix.json` 标记 `failed` / `partial`。
+5. fixer 只改白名单文件，逐条运行 `scope.testCommands`（没有多命令时回退到 `scope.testCommand`）；失败时保存 `fix-reverted.patch`、回滚该组改动，并在 `fix.json` 标记 `failed` / `partial`。
 6. 不会自动 commit、push、安装依赖或联网。
 
 > 审查阶段仍然只读。`/logi-fix` 不会复用审查子代理，也不会让多个专家并行改代码。
@@ -246,7 +258,7 @@ docs/logistics/latest.md      # 仅默认四模块完整时更新
 - `project.maxFilesPerUnit`：单个审查单元的文件上限，默认 120；大模块会拆成 `(1/N)`。
 - `project.maxUnits`：审查单元总数上限，默认 12；小目录会合并。
 - `maxFindingsPerPass`：单个专家最多保留的问题数，默认 12；超过会被判无效，不会静默截断。
-- `testCommand`：fixer 使用的测试命令；为空时自动从 `package.json` / `vitest` / `jest` / `pytest` / `go` / `cargo` 推断。
+- `testCommand`：显式指定测试命令，会覆盖自动检测；为空时自动从根目录和一级子目录的 `package.json` / Maven / Gradle / `pytest` / `go` / `cargo` 推断，最多返回 8 条（例如前端 npm、后端 Maven、Python sidecar 各一条）。
 - `modules`：模块显示名覆盖；不配置时按 `packages/*`、`apps/*`、去掉 `src`/`lib`/`app` 前缀后的首段推导。
 - `models`：按专家指定 `provider` / `model` / 可选 `reasoningEffort`。只有 DSH 开启子代理模型选择且该路由被允许时才生效；否则自动回退到父会话模型，不会中断任务。
 
@@ -270,7 +282,7 @@ docs/logistics/latest.md      # 仅默认四模块完整时更新
 ## 开发
 
 ```bash
-npm test          # node --test，74 个测试（含全项目 scope、单元覆盖、端到端 contract 与运行日志）
+npm test          # node --test，78 个测试（含全项目 scope、单元覆盖、报告契约、端到端 contract 与运行日志）
 npm run check     # 语法检查 + 全部测试
 ```
 
@@ -281,9 +293,11 @@ lib/
   index.js        # DSH 入口：注册 6 个 skill、7 个命令
   commands.js     # 命令 handler：全项目 scope、派发、/logi-fix
   project.js      # 全项目文件分类、模块划分、审查单元
-  scope.js        # git 清单、单元落盘、测试命令、scope.json
+  scope.js        # git 清单、单元落盘、多模块测试命令、scope.json
   dispatch.js     # 主编/子代理 prompt、collect/bundle/verdict 命令
-  handoffs.js     # handoff 校验、单元覆盖、候选材料、矩阵
+  handoffs.js     # handoff 校验、单元覆盖、专家报告、矩阵
+  report-check.js # report.md 与专家报告的 contract 校验
+  test-command.js # 一条/多条测试命令的展示
   verdict.js      # 主编裁决 contract 校验
   findings.js     # 归一化、稳定 ID、模块归属、排序
   config.js       # .logistics/config.json

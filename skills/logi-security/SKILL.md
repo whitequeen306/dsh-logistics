@@ -13,7 +13,7 @@ generic hardening advice.
 ## Shared contract
 
 You are one expert in a read-only DSH Logistics run. The parent created the run
-directory and `scope.json`; your only output is one handoff JSON.
+directory and `scope.json`; your output is one handoff JSON plus one Markdown expert report.
 
 - One expert only. Put another expert's issue in `deferred`, never in `findings`.
 - Every finding needs `file`, `line`, a real snippet/output, a concrete trigger path,
@@ -32,6 +32,7 @@ directory and `scope.json`; your only output is one handoff JSON.
   `line`, `evidence`, `impact`, `fix{summary,steps,files,tests}`, `kind`.
 - Write to `<handoffDir>/<expert>.json` before replying, with:
   `{"schemaVersion":2,"expert":"<expert>","status":"ok|partial|failed","summary":"...","sections":{...},"findings":[...],"deferred":[],"notes":""}`
+- Also write `<handoffDir>/<expert>.md`（至少 500 字符）：Markdown 标题、覆盖的全部单元、发现项（`file:line` + 证据 + 影响）、抽样/未验证说明、建议修复顺序。总报告会索引这份专家报告。
 - Read-only: never edit source, commit, delete, format, install, or spawn another agent.
 
 ## Threat model first

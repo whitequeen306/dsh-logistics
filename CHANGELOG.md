@@ -2,6 +2,18 @@
 
 All notable changes to this project. Format follows [Keep a Changelog](https://keepachangelog.com/); versions use [SemVer](https://semver.org/).
 
+## [0.5.0] - 2026-11-04
+
+### Changed
+
+- **`report.md` 是核心交付物**：最终报告必须能独立交给用户阅读；`verdict.json` 只是机器判决和 `/logi-fix` 的输入。命令回复把报告路径标为“核心交付物”，报告 prompt 明确要求项目总览、单元 × 专家矩阵、按模块组织的问题、证据、修复顺序和覆盖缺口。
+- **每位专家写独立报告**：handoff 目录新增 `handoff/<expert>.md`；总报告必须索引所有专家报告。`lib/handoffs.js` 记录 `reportPath` / `reportExists` / `reportChars`，`packet.md` 展示专家报告。
+- **报告 contract 校验**：新增 `lib/report-check.js`，检查 `report.md` 存在、至少 1200 字符、关键章节、全部单元 ID、finding 的 `file:line`、每位专家报告（至少 500 字符、有标题）及总报告索引；`verdict.mjs` 在 project 模式下拒绝不达标报告。
+- **`/logi-fix` 只按 ID 修复**：无参数直接报错，不再列出全部 direct 项；`--dry-run <ID...>` 与 `<ID...>` 保留。修复 prompt 与回复展示全部检测到的测试命令。
+- **审查结束必问**：单专家与 `/logi` 的最终回复必须单独询问“需要我帮你开始直接修复吗？还是你拿上报告去新开一个会话施行修复？”。
+- **多模块测试命令**：`detectTestCommands` 支持根目录和一级子目录的 npm/pnpm/yarn/bun、Maven、Gradle、pytest、go、cargo，最多 8 条；LianYu-PC 从原来的 `null` 变为 4 条（admin、backend Maven、backend-agent pytest、frontend npm）。`scope.testCommands` 保存多条，`scope.testCommand` 保留第一条兼容旧调用。
+- 测试增至 78 个，新增报告 contract、多模块测试命令、性能报告措辞断言；0.4.x 旧运行没有专家报告时按兼容模式只校验总报告，仍可用于 `/logi-fix`；文档更新到 0.5.0。
+
 ## [0.4.0] - 2026-11-04
 
 ### Changed

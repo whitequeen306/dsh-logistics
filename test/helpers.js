@@ -61,6 +61,36 @@ export function makeProjectScope(root, experts = ['correctness', 'security'], ov
   return createScope(scopeOptions(root, experts, { mode: 'project', ...overrides }))
 }
 
+function withReportLength(text, minimum) {
+  if (text.length >= minimum) return text
+  const filler = '本报告覆盖全部审查单元，发现项均标注 file:line；抽样与未验证已在正文说明。\n'
+  return `${text}\n\n## 说明\n${filler.repeat(Math.ceil((minimum - text.length) / filler.length))}`
+}
+
+function expertReportText(expert, scope, findings) {
+  const units = scope.project?.units ?? []
+  const lines = [
+    `# ${EXPERT_BY_KEY[expert]?.title ?? expert}审查报告`,
+    '',
+    '## 范围与覆盖',
+    `- 全项目 ${scope.stats?.analyzedFiles ?? 0} 个文件 / ${units.length} 个审查单元。`,
+    ...units.map((unit) => `- ${unit.id} ${unit.label}：reviewed，读过 ${unit.stats?.files ?? 0} 个文件。`),
+    '',
+    '## 发现',
+    findings.length === 0
+      ? '- 已查区域未发现问题。'
+      : findings.map((finding) => `- ${finding.title}：\`${finding.file}:${finding.line}\`；${finding.evidence}`).join('\n'),
+    '',
+    '## 未验证与抽样',
+    '- 本测试报告覆盖全部单元；生产运行必须如实标注 sampled/skipped。',
+    '',
+    '## 建议修复顺序',
+    '- 先处理 high 及其以上，再处理同文件的低风险项。',
+    '',
+  ]
+  return withReportLength(lines.join('\n'), 600)
+}
+
 export function projectHandoff(expert, scope, findings = [], extra = {}) {
   const units = Object.fromEntries(
     (scope.project?.units ?? []).map((unit) => [
@@ -68,7 +98,39 @@ export function projectHandoff(expert, scope, findings = [], extra = {}) {
       { status: 'reviewed', filesRead: unit.stats?.files ?? 0, notes: 'test coverage' },
     ]),
   )
+  write(scope.output.handoffDir, `${expert}.md`, expertReportText(expert, scope, findings))
   return handoff(expert, findings, { units, ...extra })
+}
+
+export function aggregateReport(scope, findings = []) {
+  const units = scope.project?.units ?? []
+  const lines = [
+    '# 项目审查报告',
+    '',
+    '## 一句话结论',
+    '全项目审查完成，发现项见下文。',
+    '',
+    '## 覆盖情况',
+    '| 单元 | 标签 | 专家 | 状态 |',
+    '| --- | --- | --- | --- |',
+    ...units.map((unit) => `| ${unit.id} | ${unit.label} | ${(scope.experts ?? []).join('、')} | reviewed |`),
+    '',
+    '## 发现',
+    findings.length === 0
+      ? '- 已查区域未发现问题。'
+      : findings.map((finding) => `- ${finding.title}：\`${finding.file}:${finding.line}\``).join('\n'),
+    '',
+    '## 修复建议',
+    '- 先处理 high 及其以上，再处理同文件的低风险项。',
+    '',
+    '## 覆盖缺口',
+    '- 无。',
+    '',
+    '## 专家报告',
+    ...(scope.experts ?? []).map((expert) => `- handoff/${expert}.md`),
+    '',
+  ]
+  return withReportLength(lines.join('\n'), 1300)
 }
 
 export function handoff(expert, findings = [], extra = {}) {

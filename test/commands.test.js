@@ -208,7 +208,7 @@ test('/logi-fix without a report and with unsupported flags returns errors', asy
   }
 })
 
-test('/logi-fix lists direct IDs and dry-run never dispatches', async () => {
+test('/logi-fix requires explicit IDs and dry-run never dispatches', async () => {
   const root = initRepo()
   try {
     const report = makeCompleteReport(root)
@@ -217,8 +217,8 @@ test('/logi-fix lists direct IDs and dry-run never dispatches', async () => {
 
     const list = invocation(root)
     const listResult = await command.handler(list.invocation)
-    assert.equal(listResult.kind, 'success')
-    assert.match(listResult.text, new RegExp(id, 'u'))
+    assert.equal(listResult.kind, 'error')
+    assert.match(listResult.text, /请提供要修复的 finding ID/u)
     assert.equal(list.messages.length, 0)
 
     const dry = invocation(root, { rawInput: `--dry-run ${id}` })
@@ -247,7 +247,7 @@ test('/logi-fix ignores a newer incomplete verdict and uses the latest complete 
     }, null, 2))
 
     const command = createCommands({ pluginRoot }).find((item) => item.name === 'logi-fix')
-    const list = invocation(root)
+    const list = invocation(root, { rawInput: id })
     const result = await command.handler(list.invocation)
     assert.equal(result.kind, 'success', result.text)
     assert.match(result.text, new RegExp(id, 'u'))
