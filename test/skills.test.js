@@ -13,7 +13,7 @@ function readSkill(name) {
   return parseSkillFile(readFileSync(join(skillsDir, name, 'SKILL.md'), 'utf8'), name)
 }
 
-test('ships exactly the six 0.3.2 skills', () => {
+test('ships exactly the six 0.3.3 skills', () => {
   const dirs = readdirSync(skillsDir, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)

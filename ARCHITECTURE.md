@@ -1,6 +1,6 @@
-# dsh-logistics 架构与执行模型（0.3.2）
+# dsh-logistics 架构与执行模型（0.3.3）
 
-> 本文描述 **0.3.2 已实现**的结构，不是路线图。0.3.2 按专家审计补齐了五个领域的 section 广度与技能深度；0.3.1 补齐 handoff/verdict/fix contract 的端到端验证；0.3.0 把最终裁决交给主会话模型（“主编”），机器只保留事实、收集、contract 校验和安全边界。评分、基线、门禁已在 0.2.0 删除。模块取舍见 [MODULE-DECISION.md](./MODULE-DECISION.md)，0.1.0 的旧架构保留在 git 历史与 [master 分支](https://github.com/whitequeen306/dsh-logistics/tree/master)。
+> 本文描述 **0.3.3 已实现**的结构，不是路线图。0.3.3 区分可选专家未选与必需专家缺失，并把跨专家 `deferred` 结构化写入 verdict；0.3.2 按专家审计补齐了五个领域的 section 广度与技能深度；0.3.1 补齐 handoff/verdict/fix contract 的端到端验证；0.3.0 把最终裁决交给主会话模型（“主编”），机器只保留事实、收集、contract 校验和安全边界。评分、基线、门禁已在 0.2.0 删除。模块取舍见 [MODULE-DECISION.md](./MODULE-DECISION.md)，0.1.0 的旧架构保留在 git 历史与 [master 分支](https://github.com/whitequeen306/dsh-logistics/tree/master)。
 
 ## 1. 一句话模型
 
@@ -167,6 +167,27 @@ subagent({
 
 `sections` 的每个计数必须等于该 section 的 findings 条数；未知 section、负数、缺失 section 都判无效。
 
+### 6.4 跨专家 deferred
+
+某个专家发现“不属于本模块、但值得转交”的问题时，写进 handoff 的 `deferred`，不要塞进 `findings`：
+
+```json
+{
+  "deferred": [
+    {
+      "expert": "correctness",
+      "file": "src/migrations/V57.sql",
+      "lines": "15-18",
+      "summary": "迁移绕过事件日志，且不重算 phase"
+    }
+  ]
+}
+```
+
+- `expert` 是目标专家（可空）；`summary` 必填；`file`/`lines` 可选。
+- `bundle.mjs` 把 deferred 收进 `handoffs.json` 和 `packet.md`，并加 `from` 记录来源专家。
+- 主编必须把它写进 `verdict.deferred`；缺 `from` 或 `summary` 会被 contract 判无效。verdict 里不能静默丢弃。
+
 ## 7. 报告与数据契约
 
 ### 7.1 产物
@@ -233,9 +254,9 @@ docs/logistics/latest.md # 仅默认四模块完整时更新
 
 ### 7.5 覆盖
 
-`coverage` 记录 expected / received / missing / invalid / failed / partial / complete。
+`coverage` 记录 expected / received / missing / invalid / failed / partial / complete；`optional` 只表示可追加、本次未选的专家，不算 missing。
 
-- `complete` 只表示“默认四位都收到合法 handoff”；
+- `complete` 只表示“本次 expected 专家都收到合法 handoff”；
 - 单模块也算 complete，但**不可发布 latest**；
 - `latest` 只由默认四模块完整覆盖更新。
 

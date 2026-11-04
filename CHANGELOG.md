@@ -2,6 +2,14 @@
 
 All notable changes to this project. Format follows [Keep a Changelog](https://keepachangelog.com/); versions use [SemVer](https://semver.org/).
 
+## [0.3.3] - 2026-11-04
+
+### Fixed
+
+- `collect`/`packet` 区分“可选专家未选择”和“必需专家缺失”：单专家运行不再把 `perf` 显示成 `missing`，也不再把可选未选当成覆盖问题。
+- 跨专家 `deferred` 现在会被 `bundle.mjs` 收进 `handoffs.json`/`packet.md`，并以 `{from,expert,file,lines,summary}` 写入 `verdict.deferred`；缺 `from`/`summary` 会被 contract 拒绝，避免转交项在裁决层静默丢失。
+- `verdict` 摘要输出 deferred 数量；文档补充 handoff/verdict 的 deferred 契约。
+
 ## [0.3.2] - 2026-11-04
 
 ### Changed

@@ -26,6 +26,55 @@ function completeRun(root) {
   return created
 }
 
+test('collect distinguishes optional-not-selected from required-missing', () => {
+  const root = initRepo()
+  try {
+    const created = makeScope(root, ['security'])
+    const result = runCli(pluginRoot, 'collect.mjs', ['--run', created.runDir])
+    assert.equal(result.code, 0)
+    assert.match(result.output, /security: missing/u)
+    assert.match(result.output, /perf: not-selected/u)
+    assert.doesNotMatch(result.output, /perf: missing/u)
+  } finally {
+    cleanup(root)
+  }
+})
+
+test('bundle carries deferred and the packet tells the editor not to drop it', () => {
+  const root = initRepo()
+  try {
+    const created = makeScope(root, ['security'])
+    const deferred = [
+      {
+        expert: 'correctness',
+        file: 'src/a.js',
+        lines: '2',
+        summary: '迁移绕过事件日志',
+      },
+    ]
+    write(
+      created.runDir,
+      'handoff/security.json',
+      JSON.stringify(handoff('security', [], { deferred }), null, 2),
+    )
+    const result = runCli(pluginRoot, 'bundle.mjs', ['--run', created.runDir])
+    assert.equal(result.code, 0, result.output)
+    assert.match(result.output, /deferred: 1/u)
+
+    const bundle = JSON.parse(readFileSync(join(created.runDir, 'handoffs.json'), 'utf8'))
+    assert.equal(bundle.deferred.length, 1)
+    assert.equal(bundle.deferred[0].from, 'security')
+    assert.equal(bundle.deferred[0].expert, 'correctness')
+
+    const packet = readFileSync(join(created.runDir, 'packet.md'), 'utf8')
+    assert.match(packet, /security → correctness/u)
+    assert.match(packet, /不能静默丢弃/u)
+  } finally {
+    cleanup(root)
+  }
+})
+
+
 test('collect is advisory and reports missing handoffs without failing', () => {
   const root = initRepo()
   try {
@@ -98,6 +147,41 @@ test('verdict validates a complete editor decision and normalizes fix files', ()
     const validated = validateVerdict({ root, scope: created.scope, verdict: invalid })
     assert.equal(validated.ok, false)
     assert.match(validated.errors.join('\n'), /fix\.files/u)
+  } finally {
+    cleanup(root)
+  }
+})
+
+test('verdict validates and normalizes structured deferred items', () => {
+  const root = initRepo()
+  try {
+    const created = completeRun(root)
+    const bundle = runCli(pluginRoot, 'bundle.mjs', ['--run', created.runDir])
+    assert.equal(bundle.code, 0, bundle.output)
+    const finding = { ...JSON.parse(readFileSync(join(created.runDir, 'handoffs.json'), 'utf8')).findings[0], module: 'src' }
+    const base = {
+      schemaVersion: 2,
+      runId: created.scope.runId,
+      coverage: {
+        expected: [...DEFAULT_EXPERTS],
+        received: [...DEFAULT_EXPERTS],
+        missing: [],
+        complete: true,
+      },
+      findings: [finding],
+      deferred: [
+        { from: 'security', expert: 'correctness', file: 'src/a.js', lines: '2', summary: '交给 correctness 的迁移问题' },
+      ],
+    }
+    const ok = validateVerdict({ root, scope: created.scope, verdict: base })
+    assert.equal(ok.ok, true, ok.errors.join('\\n'))
+    assert.equal(ok.verdict.deferred.length, 1)
+    assert.equal(ok.verdict.deferred[0].from, 'security')
+
+    const bad = { ...base, deferred: [{ expert: 'correctness', summary: '缺少来源' }] }
+    const invalid = validateVerdict({ root, scope: created.scope, verdict: bad })
+    assert.equal(invalid.ok, false)
+    assert.match(invalid.errors.join('\n'), /deferred\[0\]\.from/u)
   } finally {
     cleanup(root)
   }
