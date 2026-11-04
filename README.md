@@ -29,12 +29,12 @@ C:\path\to\dsh-logistics
 **CLI / 非桌面 profile**：
 
 ```bash
-dsh plugin --profile web add dsh-logistics@0.3.0
+dsh plugin --profile web add dsh-logistics@0.3.1
 dsh plugin --profile web add "C:/path/to/dsh-logistics"   # 本地开发
 dsh --profile web --dump-config | grep -A2 dsh-logistics
 ```
 
-> 0.3.0 起 npm 包是「主编模型 + 薄机器层」版本；`dsh-logistics@0.1.0` 是旧的 7 专家/评分版本，不要与 0.2/0.3 的文档混用。skill 收敛为 6 个，不再有独立的 core/pipeline skill。
+> 0.3.0 起 npm 包是「主编模型 + 薄机器层」版本；0.3.1 补齐 handoff/verdict/fix contract 的验证漏洞。`dsh-logistics@0.1.0` 是旧的 7 专家/评分版本，不要与 0.2/0.3 的文档混用。skill 收敛为 6 个，不再有独立的 core/pipeline skill。
 
 ## 命令
 
@@ -199,7 +199,7 @@ docs/logistics/latest.md      # 仅默认四模块完整时更新
 ## 开发
 
 ```bash
-npm test          # node --test，56 个测试
+npm test          # node --test，59 个测试（含端到端 contract 冒烟）
 npm run check     # 语法检查 + 全部测试
 ```
 

@@ -13,8 +13,9 @@ anything outside the selected findings.
 
 The dispatch prompt gives absolute paths to:
 
-- `selection.json` — the report run, selected finding IDs, and `allowedFiles`.
-- `report.json` — the full report (read the selected findings there).
+- `selection.json` — the verdict run, selected finding IDs, HEAD, and `allowedFiles`.
+- `verdict.json` — the editor's validated verdict (the selected findings are there).
+- `scope.json` — the read-only scope snapshot for the run.
 - `fixDir` — where you write `fix.json` and, on rollback, `fix-reverted.patch`.
 - workspace root, and the detected test command.
 
@@ -28,7 +29,7 @@ Before editing:
    `fix.files` are a subset of `allowedFiles`.
 2. Confirm `git status --porcelain` has no tracked source changes. Generated
    `.logistics/` and `docs/logistics/` files are allowed.
-3. Confirm the current `HEAD` matches `selection.reportHead` when present.
+3. Confirm the current `HEAD` matches `selection.head` when present.
 4. If any check fails, do not edit. Write a failed `fix.json` and reply.
 
 ## Per-finding procedure
@@ -75,7 +76,7 @@ Write `<fixDir>/fix.json`:
 ```json
 {
   "schemaVersion": 2,
-  "reportRunId": "...",
+  "verdictRunId": "...",
   "startedAt": "...",
   "finishedAt": "...",
   "items": [

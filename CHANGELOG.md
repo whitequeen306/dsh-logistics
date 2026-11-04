@@ -2,6 +2,16 @@
 
 All notable changes to this project. Format follows [Keep a Changelog](https://keepachangelog.com/); versions use [SemVer](https://semver.org/).
 
+## [0.3.1] - 2026-11-04
+
+### Fixed
+
+- handoff 缺少任一必需 `sections` 键时现在直接判为无效，不再补 0 后放行；`collect.mjs` 不会把“没写”误当成“已检查且干净”。
+- `verdict.coverage.expected` 必须与本次 `scope.experts` 完全一致；空数组不再能自证 `complete=true`，`/logi-fix` 因此不会在未覆盖的 run 上执行。
+- `/logi-fix` 的派发与 skill 对齐：统一读 `selection.json` / `verdict.json` / `scope.json`，`fix.json` 使用完整 `items` schema；`selection.json` 增加 `head`，修复流程可校验 HEAD 未漂移。
+- 单模块派发现在先运行 `collect.mjs` 盘点，再运行 `bundle.mjs`，不再跳过收集步骤。
+- 新增端到端冒烟：临时 git 仓库 + 假 DSH handler + handoff + bundle + verdict + `/logi-fix` dry-run/apply，覆盖 59 个测试。
+
 ## [0.3.0] - 2026-11-03
 
 ### Added
