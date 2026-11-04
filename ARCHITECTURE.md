@@ -1,6 +1,6 @@
-# dsh-logistics 架构与执行模型（0.3.3）
+# dsh-logistics 架构与执行模型（0.3.4）
 
-> 本文描述 **0.3.3 已实现**的结构，不是路线图。0.3.3 区分可选专家未选与必需专家缺失，并把跨专家 `deferred` 结构化写入 verdict；0.3.2 按专家审计补齐了五个领域的 section 广度与技能深度；0.3.1 补齐 handoff/verdict/fix contract 的端到端验证；0.3.0 把最终裁决交给主会话模型（“主编”），机器只保留事实、收集、contract 校验和安全边界。评分、基线、门禁已在 0.2.0 删除。模块取舍见 [MODULE-DECISION.md](./MODULE-DECISION.md)，0.1.0 的旧架构保留在 git 历史与 [master 分支](https://github.com/whitequeen306/dsh-logistics/tree/master)。
+> 本文描述 **0.3.4 已实现**的结构，不是路线图。0.3.4 把 verdict 覆盖接到真实 handoff、允许可选 perf 明确覆盖、拒绝无证据/错前缀 finding，并让 `/logi-fix` 自动跳过较新的不完整判决；0.3.3 区分可选专家未选与必需专家缺失，并把跨专家 `deferred` 结构化写入 verdict；0.3.2 按专家审计补齐了五个领域的 section 广度与技能深度；0.3.1 补齐 handoff/verdict/fix contract 的端到端验证；0.3.0 把最终裁决交给主会话模型（“主编”），机器只保留事实、收集、contract 校验和安全边界。评分、基线、门禁已在 0.2.0 删除。模块取舍见 [MODULE-DECISION.md](./MODULE-DECISION.md)，0.1.0 的旧架构保留在 git 历史与 [master 分支](https://github.com/whitequeen306/dsh-logistics/tree/master)。
 
 ## 1. 一句话模型
 
@@ -320,4 +320,4 @@ docs/logistics/latest.md # 仅默认四模块完整时更新
 - CLI：`lib/cli/collect.mjs`、`bundle.mjs`、`verdict.mjs`
 - 专家 skill：`skills/logi-correctness|security|reliability|maintainability|perf/SKILL.md`
 - 修复 skill：`skills/logi-fix/SKILL.md`
-- 测试：`test/*.test.js`（60 个）
+- 测试：`test/*.test.js`（67 个）

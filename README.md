@@ -29,12 +29,12 @@ C:\path\to\dsh-logistics
 **CLI / 非桌面 profile**：
 
 ```bash
-dsh plugin --profile web add dsh-logistics@0.3.3
+dsh plugin --profile web add dsh-logistics@0.3.4
 dsh plugin --profile web add "C:/path/to/dsh-logistics"   # 本地开发
 dsh --profile web --dump-config | grep -A2 dsh-logistics
 ```
 
-> 0.3.0 起 npm 包是「主编模型 + 薄机器层」版本；0.3.1 补齐 handoff/verdict/fix contract 的验证漏洞；0.3.2 按专家审计补齐安全/正确性/健壮性/可维护性/性能的 section 覆盖与技能深度；0.3.3 区分可选专家未选与必需专家缺失，并把跨专家 `deferred` 结构化写入 verdict。`dsh-logistics@0.1.0` 是旧的 7 专家/评分版本，不要与 0.2/0.3 的文档混用。skill 收敛为 6 个，不再有独立的 core/pipeline skill。
+> 0.3.0 起 npm 包是「主编模型 + 薄机器层」版本；0.3.1 补齐 handoff/verdict/fix contract 的验证漏洞；0.3.2 按专家审计补齐安全/正确性/健壮性/可维护性/性能的 section 覆盖与技能深度；0.3.3 区分可选专家未选与必需专家缺失，并把跨专家 `deferred` 结构化写入 verdict；0.3.4 让 verdict 的覆盖来自真实 handoff 校验、允许可选 perf 明确覆盖、拒绝无证据/错前缀 finding，并让 `/logi-fix` 自动跳过较新的不完整判决。`dsh-logistics@0.1.0` 是旧的 7 专家/评分版本，不要与 0.2/0.3 的文档混用。skill 收敛为 6 个，不再有独立的 core/pipeline skill。
 
 ## 命令
 
@@ -199,7 +199,7 @@ docs/logistics/latest.md      # 仅默认四模块完整时更新
 ## 开发
 
 ```bash
-npm test          # node --test，60 个测试（含端到端 contract 冒烟）
+npm test          # node --test，67 个测试（含端到端 contract 冒烟）
 npm run check     # 语法检查 + 全部测试
 ```
 

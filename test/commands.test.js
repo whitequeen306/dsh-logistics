@@ -79,7 +79,7 @@ function makeCompleteReport(root) {
     findings: report.findings,
     dropped: [],
   }, null, 2))
-  return report
+  return Object.assign(report, { created })
 }
 
 test('registers exactly seven 0.3.3 commands', () => {
@@ -179,7 +179,7 @@ test('/logi-fix without a report and with unsupported flags returns errors', asy
     const missing = invocation(root)
     const missingResult = await command.handler(missing.invocation)
     assert.equal(missingResult.kind, 'error')
-    assert.match(missingResult.text, /还没有主编判决/u)
+    assert.match(missingResult.text, /还没有完整的主编判决/u)
 
     makeCompleteReport(root)
     const unsupported = invocation(root, { rawInput: '--all' })
@@ -211,6 +211,29 @@ test('/logi-fix lists direct IDs and dry-run never dispatches', async () => {
     assert.match(dryResult.text, /dry-run/u)
     assert.equal(dry.messages.length, 0)
     assert.equal(existsSync(join(root, '.logistics', 'fixes')), false)
+  } finally {
+    cleanup(root)
+  }
+})
+
+test('/logi-fix ignores a newer incomplete verdict and uses the latest complete one', async () => {
+  const root = initRepo()
+  try {
+    const report = makeCompleteReport(root)
+    const id = report.findings[0].id
+    const newer = makeScope(root, ['security'])
+    write(newer.runDir, 'verdict.json', JSON.stringify({
+      schemaVersion: 2,
+      runId: newer.scope.runId,
+      coverage: { expected: ['security'], received: [], missing: ['security'], complete: false },
+      findings: [],
+    }, null, 2))
+
+    const command = createCommands({ pluginRoot }).find((item) => item.name === 'logi-fix')
+    const list = invocation(root)
+    const result = await command.handler(list.invocation)
+    assert.equal(result.kind, 'success', result.text)
+    assert.match(result.text, new RegExp(id, 'u'))
   } finally {
     cleanup(root)
   }

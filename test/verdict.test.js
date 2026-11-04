@@ -187,6 +187,99 @@ test('verdict validates and normalizes structured deferred items', () => {
   }
 })
 
+test('verdict accepts an explicitly covered optional perf handoff', () => {
+  const root = initRepo()
+  try {
+    const created = makeScope(root, [...DEFAULT_EXPERTS])
+    for (const expert of DEFAULT_EXPERTS) {
+      write(created.runDir, `handoff/${expert}.json`, JSON.stringify(handoff(expert, []), null, 2))
+    }
+    write(created.runDir, 'handoff/perf.json', JSON.stringify(handoff('perf', []), null, 2))
+    const verdict = {
+      schemaVersion: 2,
+      runId: created.scope.runId,
+      coverage: {
+        expected: [...DEFAULT_EXPERTS, 'perf'],
+        received: [...DEFAULT_EXPERTS, 'perf'],
+        missing: [],
+        complete: true,
+      },
+      findings: [],
+    }
+    const result = validateVerdict({ root, scope: created.scope, verdict })
+    assert.equal(result.ok, true, result.errors.join('\n'))
+  } finally {
+    cleanup(root)
+  }
+})
+
+test('verdict rejects complete coverage when handoffs are missing or findings are unsafe', () => {
+  const root = initRepo()
+  try {
+    const created = makeScope(root, [...DEFAULT_EXPERTS])
+    write(created.runDir, 'handoff/correctness.json', JSON.stringify(handoff('correctness', []), null, 2))
+    const fabricated = {
+      schemaVersion: 2,
+      runId: created.scope.runId,
+      coverage: {
+        expected: [...DEFAULT_EXPERTS],
+        received: [...DEFAULT_EXPERTS],
+        missing: [],
+        complete: true,
+      },
+      findings: [],
+    }
+    const coverageResult = validateVerdict({ root, scope: created.scope, verdict: fabricated })
+    assert.equal(coverageResult.ok, false)
+    assert.match(coverageResult.errors.join('\n'), /没有有效 handoff/u)
+    assert.match(coverageResult.errors.join('\n'), /handoff 不完整/u)
+
+    const complete = completeRun(root)
+    const bundle = runCli(pluginRoot, 'bundle.mjs', ['--run', complete.runDir])
+    assert.equal(bundle.code, 0, bundle.output)
+    const finding = {
+      ...JSON.parse(readFileSync(join(complete.runDir, 'handoffs.json'), 'utf8')).findings[0],
+      module: 'src',
+      evidence: '',
+      id: 'SEC-00000',
+    }
+    const unsafe = {
+      ...fabricated,
+      runId: complete.scope.runId,
+      findings: [finding],
+    }
+    const unsafeResult = validateVerdict({ root, scope: complete.scope, verdict: unsafe })
+    assert.equal(unsafeResult.ok, false)
+    assert.match(unsafeResult.errors.join('\n'), /必须有 evidence/u)
+    assert.match(unsafeResult.errors.join('\n'), /前缀与 expert 不一致/u)
+  } finally {
+    cleanup(root)
+  }
+})
+
+test('verdict rejects a handoff that exceeds the configured finding cap', () => {
+  const root = initRepo()
+  try {
+    const created = makeScope(root, ['security'])
+    created.scope.maxFindings = 1
+    write(created.runDir, 'handoff/security.json', JSON.stringify(handoff('security', [
+      sampleFinding('security', { title: '问题一' }),
+      sampleFinding('security', { title: '问题二' }),
+    ]), null, 2))
+    const verdict = {
+      schemaVersion: 2,
+      runId: created.scope.runId,
+      coverage: { expected: ['security'], received: ['security'], missing: [], complete: true },
+      findings: [],
+    }
+    const result = validateVerdict({ root, scope: created.scope, verdict })
+    assert.equal(result.ok, false)
+    assert.match(result.errors.join('\n'), /超过上限 1/u)
+  } finally {
+    cleanup(root)
+  }
+})
+
 test('verdict rejects missing coverage and duplicate IDs', () => {
   const root = initRepo()
   try {

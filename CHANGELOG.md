@@ -2,6 +2,16 @@
 
 All notable changes to this project. Format follows [Keep a Changelog](https://keepachangelog.com/); versions use [SemVer](https://semver.org/).
 
+## [0.3.4] - 2026-11-04
+
+### Fixed
+
+- `verdict` 的覆盖现在来自真实 handoff 校验，而不是模型自填：`coverage.received` 中的每个专家都必须有合法 handoff，`coverage.complete=true` 时 handoff 必须齐全；可选的 `perf` 可以被明确纳入覆盖，不再被当成“未运行专家”。
+- `verdict` 拒绝无 `evidence` 的 critical/high、critical/high 的低置信度，以及 `id` 前缀与 `expert` 不一致的 finding，降低 `/logi-fix` 被伪造 ID/证据误导的风险。
+- `/logi-fix` 改用最近一份**完整且通过校验**的 verdict；较新的不完整运行不会阻塞修复旧完整报告。
+- `maxFindingsPerPass` 真正生效：scope 记录上限，子提示词使用该值，超限 handoff 判为 invalid 而不是静默截断。
+- 67 个测试通过（新增可选 perf、伪造覆盖、无证据/错前缀、超限 handoff、跳过较新不完整 verdict）。
+
 ## [0.3.3] - 2026-11-04
 
 ### Fixed
