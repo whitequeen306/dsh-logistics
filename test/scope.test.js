@@ -2,11 +2,14 @@ import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import test from 'node:test'
+import { loadHandoffs } from '../lib/handoffs.js'
 import { createScope, detectTestCommands } from '../lib/scope.js'
 import {
   cleanup,
   commitAll,
   initRepo,
+  makeProjectScope,
+  projectHandoff,
   tempDir,
   write,
 } from './helpers.js'
@@ -97,6 +100,62 @@ test('expands an untracked directory into individual files', () => {
     assert.equal(created.scope.source, 'working-tree')
     assert.ok(created.scope.files.some((file) => file.path === 'src/newdir/x.js'))
     assert.ok(created.scope.files.some((file) => file.path === 'src/newdir/y.js'))
+  } finally {
+    cleanup(root)
+  }
+})
+
+test('multi-expert project runs use -master and nested expert handoff directories', () => {
+  const root = initRepo()
+  try {
+    const created = makeProjectScope(root, ['correctness', 'security'])
+    assert.match(created.runId, /-master$/u)
+    assert.equal(created.scope.output.handoffLayout, 'nested')
+    assert.ok(existsSync(join(created.runDir, 'handoff', 'correctness')))
+    assert.ok(existsSync(join(created.runDir, 'handoff', 'security')))
+
+    for (const expert of ['correctness', 'security']) {
+      write(
+        created.runDir,
+        `handoff/${expert}/${expert}.json`,
+        JSON.stringify(projectHandoff(expert, created.scope), null, 2),
+      )
+    }
+    const inventory = loadHandoffs({ root, scope: created.scope })
+    assert.equal(inventory.complete, true)
+    assert.deepEqual(inventory.received, ['correctness', 'security'])
+  } finally {
+    cleanup(root)
+  }
+})
+
+test('nested project scopes still read legacy flat handoffs', () => {
+  const root = initRepo()
+  try {
+    const created = makeProjectScope(root, ['correctness', 'security'])
+    for (const expert of ['correctness', 'security']) {
+      write(
+        created.runDir,
+        `handoff/${expert}.json`,
+        JSON.stringify(projectHandoff(expert, created.scope), null, 2),
+      )
+    }
+    const inventory = loadHandoffs({ root, scope: created.scope })
+    assert.equal(inventory.complete, true)
+    assert.deepEqual(inventory.received, ['correctness', 'security'])
+  } finally {
+    cleanup(root)
+  }
+})
+
+test('single-expert project runs keep the expert suffix and flat handoff layout', () => {
+  const root = initRepo()
+  try {
+    const created = makeProjectScope(root, ['security'], { command: '/logi-security' })
+    assert.match(created.runId, /-security$/u)
+    assert.equal(created.scope.output.handoffLayout, 'flat')
+    assert.ok(existsSync(join(created.runDir, 'handoff')))
+    assert.equal(existsSync(join(created.runDir, 'handoff', 'security')), false)
   } finally {
     cleanup(root)
   }

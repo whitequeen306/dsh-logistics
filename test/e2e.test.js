@@ -63,7 +63,7 @@ function securityFinding() {
   })
 }
 
-test('0.5.0 end-to-end: project dispatch -> handoff -> bundle -> verdict -> fix dry-run', async () => {
+test('0.5.1 end-to-end: project dispatch -> handoff -> bundle -> verdict -> fix dry-run', async () => {
   const root = initRepo()
   try {
     write(root, 'src/auth.js', "export function isAdmin(user) {\n  if (user.role = 'admin') {\n    return true\n  }\n  return false\n}\n")

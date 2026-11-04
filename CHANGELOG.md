@@ -2,6 +2,16 @@
 
 All notable changes to this project. Format follows [Keep a Changelog](https://keepachangelog.com/); versions use [SemVer](https://semver.org/).
 
+## [0.5.1] - 2026-11-04
+
+### Changed
+
+- **运行目录带命令后缀**：`/logi` 的 run 目录为 `<runId>-master`，单专家命令为 `<runId>-<expert>`，不再只有一串时间戳和随机码。
+- **`/logi` 的 handoff 按专家分目录**：`handoff/<expert>/<expert>.json` 与 `handoff/<expert>/<expert>.md`；单专家仍为 `handoff/<expert>.json|.md`。新增 `lib/handoff-paths.js` 统一路径与兼容逻辑。
+- **旧 run 兼容**：0.5.0 及更早的平铺 handoff 仍可读取；新 `/logi` scope 优先读嵌套路径，读不到时回退平铺。
+- 报告 contract、命令回复、prompt 和 `packet.md` 都改用实际 handoff/专家报告路径；测试增至 81 个，新增 `-master`、单专家后缀、嵌套 handoff 与旧平铺兼容用例。
+- 文档更新到 0.5.1。
+
 ## [0.5.0] - 2026-11-04
 
 ### Changed

@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { EXPERT_BY_KEY, DEFAULT_CONFIG } from '../lib/constants.js'
+import { handoffMarkdownPath, handoffRelPath } from '../lib/handoff-paths.js'
 import { createScope } from '../lib/scope.js'
 
 export function tempDir(prefix = 'dsh-logi-') {
@@ -98,7 +99,9 @@ export function projectHandoff(expert, scope, findings = [], extra = {}) {
       { status: 'reviewed', filesRead: unit.stats?.files ?? 0, notes: 'test coverage' },
     ]),
   )
-  write(scope.output.handoffDir, `${expert}.md`, expertReportText(expert, scope, findings))
+  const reportPath = handoffMarkdownPath(scope, expert)
+  mkdirSync(dirname(reportPath), { recursive: true })
+  writeFileSync(reportPath, expertReportText(expert, scope, findings))
   return handoff(expert, findings, { units, ...extra })
 }
 
@@ -127,7 +130,7 @@ export function aggregateReport(scope, findings = []) {
     '- 无。',
     '',
     '## 专家报告',
-    ...(scope.experts ?? []).map((expert) => `- handoff/${expert}.md`),
+    ...(scope.experts ?? []).map((expert) => `- ${handoffRelPath(scope, expert, 'md')}`),
     '',
   ]
   return withReportLength(lines.join('\n'), 1300)

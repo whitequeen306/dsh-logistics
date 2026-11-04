@@ -29,9 +29,9 @@ directory and `scope.json`; your output is one handoff JSON plus one Markdown ex
   otherwise `kind: "plan"`. Performance findings are always `plan`.
 - Finding fields: `section`, `category`, `severity`, `confidence`, `title`, `file`,
   `line`, `evidence`, `impact`, `fix{summary,steps,files,tests}`, `kind`.
-- Write to `<handoffDir>/<expert>.json` before replying, with:
+- Write to the exact JSON handoff path given in the child prompt (`/logi`: `<handoffDir>/<expert>/<expert>.json`; single-expert: `<handoffDir>/<expert>.json`) before replying, with:
   `{"schemaVersion":2,"expert":"<expert>","status":"ok|partial|failed","summary":"...","sections":{...},"findings":[...],"deferred":[],"notes":""}`
-- Also write `<handoffDir>/<expert>.md`（至少 500 字符）：Markdown 标题、覆盖的全部单元、发现项（`file:line` + 证据 + 影响）、抽样/未验证说明、建议修复顺序。总报告会索引这份专家报告。
+- Also write the matching Markdown report at the exact path given in the child prompt (`/logi`: `<handoffDir>/<expert>/<expert>.md`; single-expert: `<handoffDir>/<expert>.md`)（至少 500 字符）：Markdown 标题、覆盖的全部单元、发现项（`file:line` + 证据 + 影响）、抽样/未验证说明、建议修复顺序。总报告会索引这份专家报告。
 - Read-only: never edit source, commit, delete, format, install, or spawn another agent.
 
 ## First pass: change cost

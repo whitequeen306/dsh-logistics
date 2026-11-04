@@ -6,13 +6,15 @@
 
 > 0.5.0 起，审查命令只做**全项目审查**，不再审查工作区 diff 或最近一次提交；也没有 `/logi-diff` 或 `--diff`。`/logi-fix` 只按你明确给出的问题 ID 修复 `direct` 项。
 >
-> 从 CodeCortexLoop（MIT，原仓库留存于 [master 分支](https://github.com/whitequeen306/dsh-logistics/tree/master)）迁移而来。0.2.0 删除评分、基线与门禁；0.3.0 起改为「主编模型 + 薄机器层」；0.4.0 把范围从改动集改成整个项目；0.5.0 把 `report.md` 定为唯一核心交付物，并要求每位专家单独写报告。设计记录见 [MODULE-DECISION.md](./MODULE-DECISION.md)。
+> 0.5.1 起，run 目录会带命令后缀：`/logi` 为 `...-master`，单专家为 `...-<expert>`；`/logi` 的 handoff 按专家分目录（`handoff/<expert>/<expert>.json`），单专家保持平铺（`handoff/<expert>.json`）。旧的平铺 run 仍可读取。
+>
+> 从 CodeCortexLoop（MIT，原仓库留存于 [master 分支](https://github.com/whitequeen306/dsh-logistics/tree/master)）迁移而来。0.2.0 删除评分、基线与门禁；0.3.0 起改为「主编模型 + 薄机器层」；0.4.0 把范围从改动集改成整个项目；0.5.0 把 `report.md` 定为唯一核心交付物，并要求每位专家单独写报告；0.5.1 让 run 目录和 `/logi` 的 handoff 按命令/专家分目录。设计记录见 [MODULE-DECISION.md](./MODULE-DECISION.md)。
 
 ## 核心交付物
 
 每次审查的最终产品是 **`.logistics/runs/<runId>/report.md`**：它必须能独立交给用户阅读，包含项目总览、单元 × 专家覆盖矩阵、按模块组织的问题、证据、修复顺序与覆盖缺口。`verdict.json` 只是机器判决和 `/logi-fix` 的输入，不能替代报告。
 
-每位专家还会写一份自己的 **`handoff/<expert>.md`**；总报告必须索引这些专家报告。报告缺失、过短或缺少关键章节时，`verdict.mjs` 会拒绝该次 run。
+每位专家还会写一份自己的报告：`/logi` 在 `handoff/<expert>/<expert>.md`，单专家在 `handoff/<expert>.md`；总报告必须索引这些专家报告。报告缺失、过短或缺少关键章节时，`verdict.mjs` 会拒绝该次 run。
 
 ## 它能做什么
 
@@ -38,7 +40,7 @@ C:\path\to\dsh-logistics
 **CLI / 非桌面 profile**：
 
 ```bash
-dsh plugin --profile web add dsh-logistics@0.5.0
+dsh plugin --profile web add dsh-logistics@0.5.1
 dsh plugin --profile web add "C:/path/to/dsh-logistics"   # 本地开发
 dsh --profile web --dump-config | grep -A2 dsh-logistics
 ```
@@ -81,7 +83,7 @@ dsh --profile web --dump-config | grep -A2 dsh-logistics
    │     派发 4 位专家；每位专家都要覆盖全部审查单元
    │
    ├─ 3. 子代理写 handoff
-   │     .logistics/runs/<runId>/handoff/<expert>.json
+   │     .logistics/runs/<runId>-master/handoff/<expert>/<expert>.json
    │     每个 handoff 带 units 映射：reviewed / sampled / skipped
    │
    ├─ 4. 收集与候选材料
@@ -142,15 +144,16 @@ dsh --profile web --dump-config | grep -A2 dsh-logistics
 每次 `/logi*` 都会在 run 目录写一份可追溯日志：
 
 ```text
-.logistics/runs/<runId>/
+.logistics/runs/<runId>-master/     # 单专家命令为 <runId>-<expert>
   run.jsonl              # 每行一个事件：scope.created、dispatch.queued、
                          # dispatch.accepted/failed、collect.completed、
                          # bundle.completed、verdict.validated
   dispatch.md            # 实际注入给主会话模型的派发消息
   prompts/<expert>.md    # 每位专家实际收到的 child prompt
   scope.json             # 本次项目清单与审查单元
-  handoff/<expert>.json  # 子代理原始输出
-  handoff/<expert>.md    # 每位专家的独立 Markdown 报告（模型写）
+  handoff/<expert>/<expert>.json  # /logi：每位专家一个子目录
+  handoff/<expert>/<expert>.md    # /logi：每位专家的独立 Markdown 报告（模型写）
+                         # 单专家为 handoff/<expert>.json 与 handoff/<expert>.md
   verdict.json           # 主编裁决（机器校验 contract）
   report.md              # 核心交付物：完整项目报告（模型写）
 ```
@@ -169,10 +172,10 @@ units:
 
 ```text
 .logistics/
-  runs/<runId>/
+  runs/<runId>-master/        # 单专家为 <runId>-<expert>
     scope.json
-    handoff/<expert>.json
-    handoff/<expert>.md       # 每位专家的独立报告
+    handoff/<expert>/<expert>.json  # /logi；单专家为 handoff/<expert>.json
+    handoff/<expert>/<expert>.md    # 每位专家的独立报告
     handoffs.json             # bundle 生成的候选材料索引
     packet.md                 # 给主编的候选材料 + 单元 × 专家矩阵
     verdict.json              # 主编裁决（机器只校验 contract）
@@ -192,7 +195,7 @@ docs/logistics/latest.md      # 仅默认四模块完整时更新
 - **按模块分组的问题**：标题、位置、证据、影响、修复步骤、涉及文件、建议测试。
 - **未覆盖维度**：哪些单元只 sampled、哪些 skipped、哪些 handoff 失败/缺失。
 - **建议修复顺序**：同文件合并、根因先行、可维护性单独批次、性能单独批次。
-- **专家报告索引**：每位专家的 `handoff/<expert>.md` 路径与一句话结论；每位专家另有独立报告。
+- **专家报告索引**：`/logi` 为 `handoff/<expert>/<expert>.md`，单专家为 `handoff/<expert>.md`；每位专家另有独立报告。
 
 `report.md` 是核心交付物；`verdict.mjs` 会检查它是否存在、长度、关键章节、是否出现全部单元 ID、finding 是否有 `file:line`，以及专家报告是否存在且被总报告索引。报告不达标时，该次 run 不能算完成，也不会更新 `latest`。
 
@@ -282,7 +285,7 @@ docs/logistics/latest.md      # 仅默认四模块完整时更新
 ## 开发
 
 ```bash
-npm test          # node --test，78 个测试（含全项目 scope、单元覆盖、报告契约、端到端 contract 与运行日志）
+npm test          # node --test，81 个测试（含全项目 scope、单元覆盖、报告契约、端到端 contract 与运行日志）
 npm run check     # 语法检查 + 全部测试
 ```
 
@@ -298,6 +301,7 @@ lib/
   handoffs.js     # handoff 校验、单元覆盖、专家报告、矩阵
   report-check.js # report.md 与专家报告的 contract 校验
   test-command.js # 一条/多条测试命令的展示
+  handoff-paths.js # run/handoff 路径：/logi 嵌套，单专家平铺，旧 run 兼容
   verdict.js      # 主编裁决 contract 校验
   findings.js     # 归一化、稳定 ID、模块归属、排序
   config.js       # .logistics/config.json

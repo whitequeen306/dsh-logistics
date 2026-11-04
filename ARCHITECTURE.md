@@ -1,6 +1,6 @@
-# dsh-logistics 架构与执行模型（0.5.0）
+# dsh-logistics 架构与执行模型（0.5.1）
 
-> 本文描述 **0.5.0 已实现**的结构，不是路线图。0.4.0 把审查范围从「工作区 diff / 最近提交」改成**整个项目**：`git ls-files` 全量清单 → 文件分类 → 模块切分 → 审查单元；每个专家覆盖全部单元，并用 handoff 的 `units` 映射声明 reviewed / sampled / skipped。0.5.0 把 `report.md` 定为核心交付物，要求每位专家另写 `handoff/<expert>.md`，并由 `lib/report-check.js` 做 contract 校验；`/logi-fix` 只接受显式 ID。0.3.x 的主编模型、contract 校验、运行日志和修复白名单继续保留。评分、基线、门禁已在 0.2.0 删除。
+> 本文描述 **0.5.1 已实现**的结构，不是路线图。0.4.0 把审查范围从「工作区 diff / 最近提交」改成**整个项目**：`git ls-files` 全量清单 → 文件分类 → 模块切分 → 审查单元；每个专家覆盖全部单元，并用 handoff 的 `units` 映射声明 reviewed / sampled / skipped。0.5.0 把 `report.md` 定为核心交付物，要求每位专家另写报告，并由 `lib/report-check.js` 做 contract 校验；`/logi-fix` 只接受显式 ID。0.5.1 给 run 目录加命令后缀（`/logi` 为 `-master`，单专家为 `-<expert>`），并让 `/logi` 的 handoff 按专家分目录，旧平铺 run 仍可读。0.3.x 的主编模型、contract 校验、运行日志和修复白名单继续保留。评分、基线、门禁已在 0.2.0 删除。
 
 ## 1. 一句话模型
 
@@ -8,7 +8,7 @@
 /logi-* 命令
   → 确定性 scope.json（全项目文件、模块、审查单元、测试命令、模型路由）
   → 主会话模型（主编）读 scope，派发专家
-  → 每位专家一个只读 child，覆盖全部单元，写 handoff/<expert>.json + handoff/<expert>.md
+  → 每位专家一个只读 child，覆盖全部单元，写 handoff/<expert>/<expert>.json + .md（/logi；单专家平铺）
   → collect（盘点专家 + 单元覆盖，不是质量门禁）
   → bundle（候选材料 + 稳定 ID + 单元 × 专家矩阵）
   → 主会话模型合并/去重/定级/取舍，写 verdict.json + report.md
@@ -26,6 +26,7 @@
 | 命令层 | `lib/commands.js` | 取 cwd、建 run、注入全项目派发、处理 `/logi-fix` | 否（只入队） |
 | 项目层 | `lib/project.js` | 文件分类、模块归属、审查单元、上限与合并 | 否 |
 | 范围层 | `lib/scope.js` | git 清单、项目 scope 落盘、测试命令、模型路由 | 否 |
+| 路径层 | `lib/handoff-paths.js` | run 目录后缀、嵌套/平铺 handoff 路径、旧 run 兼容 | 否 |
 | 派发层 | `lib/dispatch.js` | 主编协议、child prompt、collect/bundle/verdict 命令 | 否 |
 | 专家层 | `skills/logi-*/SKILL.md` + `subagent` | 每位专家一个只读 child；共享契约内联在专家 skill 中 | 是 |
 | 收集层 | `lib/handoffs.js`、`lib/cli/collect.mjs` | 校验 handoff、section 计数、单元覆盖、专家报告索引、候选材料 | 否 |
@@ -80,7 +81,7 @@ cli → scope / handoffs / verdict
 1. 从 `invocation.agent.session.header.cwd` 取工作区，回退 `process.cwd()`。
 2. `gitRoot(cwd) ?? cwd` 作为项目根。
 3. `loadConfig(root)` 合并 `.logistics/config.json`，包含 `project` 上限和 `models` 路由。
-4. `createScope({ cwd, command, experts, notes, config, mode: 'project' })` 写 `.logistics/runs/<runId>/scope.json`。
+4. `createScope({ cwd, command, experts, notes, config, mode: 'project' })` 写 `.logistics/runs/<runId>-<master|expert>/scope.json`。
 5. 没有任何可分析文件时返回中文错误，不派发。
 6. 生成 `buildProjectDispatch`（内含逐字 child prompt、单元清单、模型路由、collect/bundle/verdict 命令、report.md 与专家报告要求）。
 7. `agent.followup(...)` 注入下一轮 user 消息。
@@ -156,7 +157,7 @@ groupUnits:
 ```json
 {
   "schemaVersion": 2,
-  "version": "0.5.0",
+  "version": "0.5.1",
   "runId": "20261104-...",
   "mode": "project",
   "source": "project",
@@ -186,7 +187,7 @@ groupUnits:
   │
   ├─ 3. 分波 subagent：每条 assistant 消息最多 4 个 child
   │       每位 child 收到完整单元清单 + 自己的专家 skill
-  │       只读，写 handoff/<expert>.json（含 units 映射）
+  │       只读，写 handoff/<expert>/<expert>.json（含 units 映射；单专家平铺）
   │
   ├─ 4. collect.mjs：盘点专家 received/missing/invalid/failed/partial
   │       并打印每个单元的 reviewed/sampled/skipped/missing
@@ -234,7 +235,7 @@ subagent({
 - **必须覆盖所有 `project.units`**，不能只看自己感兴趣的目录。
 - 每条 finding 必须有位置、证据、触发路径、影响。
 - 必须声明所有 section 的检查计数；计数与 findings 不一致会被判无效。
-- 只写自己的 `handoff/<expert>.json`；不读其他 child 的 handoff。
+- 只写自己的 `handoff/<expert>/<expert>.json`（`/logi`）或 `handoff/<expert>.json`（单专家）；不读其他 child 的 handoff。
 
 ### 7.3 handoff
 
@@ -259,7 +260,7 @@ subagent({
 - `units` 必须包含**所有** `project.units` id；缺失/非法 → handoff invalid。
 - `status` 只能是 `reviewed / sampled / skipped`；任一 `skipped` 会把 handoff 标为 `partial`，collect 不 complete。
 - `sampled` 算已覆盖，但报告必须把它写成“抽样”而不是“逐行审查”。
-- 每位专家还必须写 `handoff/<expert>.md`（>=500 字符、有 Markdown 标题、覆盖范围与发现、抽样/未验证说明）；总报告必须索引这份专家报告。
+- 每位专家还必须写自己的 Markdown 报告（>=500 字符、有 Markdown 标题、覆盖范围与发现、抽样/未验证说明）：`/logi` 为 `handoff/<expert>/<expert>.md`，单专家为 `handoff/<expert>.md`；总报告必须索引这份专家报告。
 - `sections` 的每个计数必须等于该 section 的 findings 条数；未知 section、负数、缺失 section 都判无效。
 - findings 数量超过 `scope.maxFindings`（默认 12）会被判无效，不静默截断。
 
@@ -289,13 +290,13 @@ subagent({
 ### 8.1 产物
 
 ```text
-.logistics/runs/<runId>/
+.logistics/runs/<runId>-master/   # 单专家为 <runId>-<expert>
   scope.json
   dispatch.md
   prompts/<expert>.md
   run.jsonl
-  handoff/<expert>.json
-  handoff/<expert>.md    # 每位专家的独立报告
+  handoff/<expert>/<expert>.json  # /logi；单专家为 handoff/<expert>.json
+  handoff/<expert>/<expert>.md    # 每位专家的独立报告
   handoffs.json          # bundle：候选 finding + 专家/单元覆盖
   packet.md              # 给主编的候选材料 + 单元 × 专家矩阵
   verdict.json           # 主编裁决（机器校验 contract）
@@ -316,8 +317,8 @@ docs/logistics/latest.md # 仅默认四模块完整时更新
 - 含“一句话结论 / 覆盖 / 发现或问题 / 修复 / 缺口或未验证”章节；
 - 出现全部 `scope.project.units[].id`；
 - verdict 有 findings 时，报告至少出现一个 `file:line`；
-- 每位 expected 专家的 `handoff/<expert>.md` 存在、至少 500 字符、有 Markdown 标题；
-- 总报告包含每位专家的 `handoff/<expert>.md` 索引。
+- 每位 expected 专家的 Markdown 报告存在、至少 500 字符、有 Markdown 标题（`/logi` 读 `handoff/<expert>/<expert>.md`，单专家读 `handoff/<expert>.md`，并回退旧平铺路径）；
+- 总报告包含每位专家的实际报告路径索引。
 
 任一项失败，`verdict.mjs` 返回非零，run 不算完成，也不会更新 latest。`report.md` 不是 `verdict.json` 的附属摘要，而是最终给用户阅读和带走的产物。
 
@@ -437,6 +438,7 @@ docs/logistics/latest.md # 仅默认四模块完整时更新
 - 命令：`lib/commands.js`
 - 全项目规划：`lib/project.js`
 - 范围：`lib/scope.js`
+- 路径：`lib/handoff-paths.js`
 - 派发：`lib/dispatch.js`
 - handoff/单元覆盖：`lib/handoffs.js`
 - 报告契约：`lib/report-check.js`
@@ -448,4 +450,4 @@ docs/logistics/latest.md # 仅默认四模块完整时更新
 - CLI：`lib/cli/collect.mjs`、`bundle.mjs`、`verdict.mjs`
 - 专家 skill：`skills/logi-correctness|security|reliability|maintainability|perf/SKILL.md`
 - 修复 skill：`skills/logi-fix/SKILL.md`
-- 测试：`test/*.test.js`（78 个）
+- 测试：`test/*.test.js`（81 个）
