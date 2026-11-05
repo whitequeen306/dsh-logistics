@@ -17,7 +17,7 @@ function finding(overrides = {}) {
   }
 }
 
-test('builds a module-finding bipartite graph with model relations', () => {
+test('builds a module-grouped graph with model relations', () => {
   const root = initRepo()
   try {
     const scope = makeProjectScope(root, ['correctness', 'security']).scope
@@ -42,10 +42,13 @@ test('builds a module-finding bipartite graph with model relations', () => {
     assert.ok(graph.nodes.some((node) => node.type === 'finding' && node.id === 'COR-DEF34'))
     assert.ok(graph.edges.some((edge) => edge.type === 'located-in' && edge.from === 'SEC-ABC12'))
     assert.ok(graph.edges.some((edge) => edge.type === 'shared-root-cause'))
-    // severity order is critical first on the right side
+    // severity order is critical first inside the module column
     const findingNodes = graph.nodes.filter((node) => node.type === 'finding')
     assert.equal(findingNodes[0].id, 'COR-DEF34')
     assert.equal(findingNodes[0].unit, 'u01')
+    const html = renderGraphHtml(graph)
+    assert.match(html, /relation-edge/u)
+    assert.match(html, /同一根因|shared-root-cause/u)
   } finally {
     cleanup(root)
   }
@@ -62,6 +65,9 @@ test('renderGraphHtml is self-contained and escapes finding titles', () => {
     const html = renderGraphHtml(graph)
     assert.match(html, /<!doctype html>/u)
     assert.match(html, /<svg/u)
+    assert.match(html, /模块分栏/u)
+    assert.match(html, /data-module="src"/u)
+    assert.doesNotMatch(html, /module-edge/u)
     assert.match(html, /&lt;\/text&gt;&lt;script&gt;/u)
     assert.doesNotMatch(html, /<script>alert/u)
     assert.doesNotMatch(html, /https?:\/\//u)

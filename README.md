@@ -207,13 +207,13 @@ docs/logistics/latest.md      # 仅默认四模块完整时更新
 - **未覆盖维度**：哪些单元只 sampled、哪些 skipped、哪些 handoff 失败/缺失。
 - **建议修复顺序**：同文件合并、根因先行、可维护性单独批次、性能单独批次。
 - **专家报告索引**：`/logi` 为 `handoff/<expert>/<expert>.md`，单专家为 `handoff/<expert>.md`；每位专家另有独立报告。
-- **关系图**：`graph.html` 展示模块节点、问题节点、问题→模块的定位边，以及问题之间的同根因/同文件/依赖/冲突/相关关系；`graph.json` 是对应的机器可读数据。
+- **关系图**：`graph.html` 按模块分栏展示问题，栏内按严重度排列；问题之间的同根因/同文件/依赖/冲突/相关关系用彩色曲线表示；`graph.json` 是对应的机器可读数据。
 
 `report.md` 是核心交付物；`verdict.mjs` 会检查它是否存在、长度、关键章节、是否出现全部单元 ID、finding 是否有 `file:line`、`direct`/`plan` 是否各自进入 `## 可直接修` / `## 需方案`、是否包含 `## 测试证据` 与全部测试命令、是否按严重度排序并标注单元，以及专家报告是否存在且被总报告索引。报告不达标时，该次 run 不能算完成，也不会更新 `latest`。
 
 ### 关系图
 
-`graph.html` 由插件根据 `verdict.json` 确定性生成，不依赖 Graphviz、Mermaid 或任何外部 JS/CDN，直接用浏览器打开即可。`graph.json` 的 `nodes` 分模块和问题两类，`edges` 包含 `located-in` 和模型声明的 `relations`（`shared-root-cause` / `same-file` / `depends-on` / `contradicts` / `related`）。关系只连接本次 verdict 中真实存在的 finding ID；未知 ID、自环、重复边会被拒绝或忽略。
+`graph.html` 由插件根据 `verdict.json` 确定性生成，不依赖 Graphviz、Mermaid 或任何外部 JS/CDN，直接用浏览器打开即可。图按模块分栏：每个模块是一栏，问题作为卡片放在所属模块栏内，因此“一对多”的模块归属由布局直接表达，不再画满屏的定位线；问题之间由模型在 `verdict.relations` 中声明的 `shared-root-cause` / `same-file` / `depends-on` / `contradicts` / `related` 关系用彩色曲线连接。`graph.json` 的 `nodes` 分模块和问题两类，`edges` 保留 `located-in` 定位数据和模型关系，供机器消费。关系只连接本次 verdict 中真实存在的 finding ID；未知 ID、自环、重复边会被拒绝或忽略。
 
 ### 报告脱敏
 

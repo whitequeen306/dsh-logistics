@@ -8,7 +8,7 @@ All notable changes to this project. Format follows [Keep a Changelog](https://k
 
 - 总报告按 critical → high → medium → low 排序，每条 finding 标出所属审查单元（`[uXX]`）；`report-check` 会拒绝未按严重度排序或缺少单元标签的报告。
 - `verdict.json` 新增 `relations`（`shared-root-cause` / `same-file` / `depends-on` / `contradicts` / `related`），用于声明 finding 之间的关系；插件校验 ID、禁止自环和重复边。
-- 每次成功运行生成 `graph.json` 与自包含的 `graph.html`：模块节点、问题节点、问题→模块定位边和问题关系边；不依赖 Graphviz、Mermaid 或外部 CDN。
+- 每次成功运行生成 `graph.json` 与自包含的 `graph.html`：按模块分栏、问题卡片归属所属模块，模块归属由布局直接表达；问题关系用彩色曲线表示；不依赖 Graphviz、Mermaid 或外部 CDN。
 - 命令回复显示关系图路径；`lib/graph.js` 提供 `buildGraph` / `renderGraphHtml` / `writeGraph`。
 
 ### Changed
