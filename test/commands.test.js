@@ -58,12 +58,12 @@ test('registers exactly six commands', () => {
   for (const command of commands) {
     assert.equal(typeof command.description, 'string')
     assert.ok(command.description.length >= 30, `${command.name} description is too short`)
-    assert.match(command.description, /全项目/u)
+    assert.match(command.description, command.name === 'logi' ? /全项目/u : /只开启/u)
     assert.equal(command.input.attachments, false)
   }
   assert.equal(new Set(commands.map((command) => command.description)).size, commands.length)
   const security = commands.find((command) => command.name === 'logi-security')
-  assert.match(security.description, /认证授权/u)
+  assert.match(security.description, /认证/u)
   assert.match(security.description, /供应链/u)
 })
 

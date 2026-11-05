@@ -14,6 +14,7 @@ All notable changes to this project. Format follows [Keep a Changelog](https://k
 
 - handoff 的 `findings[].brief` 对 0.6.5 项目运行必填；缺失会使 handoff invalid。
 - `verdict.json` 的 finding 增加 `brief`；五份专家 skill 和子代理 prompt 都要求先写简述。
+- 五个专家命令的面板描述改为“只开启……专家审查……问题，具体包括：……”并逐项列出本专家的检查范围，便于用户在选择命令前判断该开哪个专家。
 - 测试增至 90 个，新增简述报告契约与关系图悬停用例；本次不打包、不发布。
 
 ## [0.6.4] - 2026-11-05
