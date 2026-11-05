@@ -1,6 +1,6 @@
-# dsh-logistics 架构与执行模型（0.6.5）
+# dsh-logistics 架构与执行模型（0.6.6）
 
-> 本文描述 **0.6.5 已实现**的结构，不是路线图。0.4.0 把审查范围从「工作区 diff / 最近提交」改成**整个项目**：`git ls-files` 全量清单 → 文件分类 → 模块切分 → 审查单元；每个专家覆盖全部单元，并用 handoff 的 `units` 映射声明 reviewed / sampled / skipped。0.5.0 把 `report.md` 定为核心交付物，要求每位专家另写报告，并由 `lib/report-check.js` 做 contract 校验。0.5.1 给 run 目录加命令后缀（`/logi` 为 `-master`，单专家为 `-<expert>`），并让 `/logi` 的 handoff 按专家分目录，旧平铺 run 仍可读。0.6.0 移除 `/logi-fix` 与独立 fixer，插件不提供写操作命令；审查子代理仍受 prompt 约束，需要修复时由用户把报告或 finding 交给主模型。0.6.1 在报告 contract 校验前加入确定性脱敏与残留凭据扫描；0.6.2 细化 DSH 命令面板中的审查范围描述；0.6.3 把脱敏扩展到 run 目录下全部文本产物，增加结构化测试证据与 `direct`/`plan` 报告分区；0.6.4 把总报告改为按严重度排序并标注所属单元，并生成 `graph.json` + `graph.html` 关系图；0.6.5 要求 finding 先写面向非开发者的 `brief`，再写详细问题、证据、影响和修复。0.3.x 的主编模型、contract 校验和运行日志继续保留。
+> 本文描述 **0.6.6 已实现**的结构，不是路线图。0.4.0 把审查范围从「工作区 diff / 最近提交」改成**整个项目**：`git ls-files` 全量清单 → 文件分类 → 模块切分 → 审查单元；每个专家覆盖全部单元，并用 handoff 的 `units` 映射声明 reviewed / sampled / skipped。0.5.0 把 `report.md` 定为核心交付物，要求每位专家另写报告，并由 `lib/report-check.js` 做 contract 校验。0.5.1 给 run 目录加命令后缀（`/logi` 为 `-master`，单专家为 `-<expert>`），并让 `/logi` 的 handoff 按专家分目录，旧平铺 run 仍可读。0.6.0 移除 `/logi-fix` 与独立 fixer，插件不提供写操作命令；审查子代理仍受 prompt 约束，需要修复时由用户把报告或 finding 交给主模型。0.6.1 在报告 contract 校验前加入确定性脱敏与残留凭据扫描；0.6.2 细化 DSH 命令面板中的审查范围描述；0.6.3 把脱敏扩展到 run 目录下全部文本产物，增加结构化测试证据与 `direct`/`plan` 报告分区；0.6.4 把总报告改为按严重度排序并标注所属单元，并生成 `graph.json` + `graph.html` 关系图；0.6.5 要求 finding 先写面向非开发者的 `brief`，再写详细问题、证据、影响和修复；0.6.6 为每个单元增加核心必读清单和最低实际读取数，handoff 必须列出实际读过的文件。0.3.x 的主编模型、contract 校验和运行日志继续保留。
 
 ## 1. 一句话模型
 
@@ -131,17 +131,19 @@ groupUnits:
 默认：
 
 ```json
-{ "maxFiles": 2000, "maxFilesPerUnit": 120, "maxUnits": 12 }
+{ "maxFiles": 2000, "maxFilesPerUnit": 120, "maxUnits": 12, "minFilesPerUnit": 30 }
 ```
+
+每个单元还会计算 `core`：构建/配置（`package.json`、`pom.xml` 等）、入口（`main`/`index`/`app`/`server` 等）、认证/安全/中间件、迁移/schema、路由/控制器/服务链路，再补最大文件，最多 12 个。`core` 是“不能不看”的最小链路；专家实际读过的文件写在 handoff 的 `units[].files`，必须覆盖 `core` 且达到 `minFilesPerUnit`（单元更小则全读）。
 
 `buildProjectPlan({ root, config })` 返回：
 
 ```json
 {
   "files": [{ "path": "src/a.js", "status": "present", "lines": 10 }],
-  "units": [{ "id": "u01", "label": "src", "files": [], "stats": { "files": 2, "lines": 30 } }],
+  "units": [{ "id": "u01", "label": "src", "core": ["src/main.js"], "files": [], "stats": { "files": 2, "lines": 30, "coreFiles": 1 } }],
   "totals": { "trackedFiles": 1488, "reviewedFiles": 1102, "omittedFiles": 386,
-              "truncated": false, "units": 12, "lines": 150079 }
+              "truncated": false, "units": 12, "coreFiles": 144, "lines": 150079 }
 }
 ```
 
@@ -152,7 +154,7 @@ groupUnits:
 ```json
 {
   "schemaVersion": 2,
-  "version": "0.6.5",
+  "version": "0.6.6",
   "runId": "20261104-...",
   "mode": "project",
   "source": "project",
@@ -161,7 +163,7 @@ groupUnits:
   "stats": { "analyzedFiles": 1102, "additions": 150079, "deletions": 0, "truncated": false },
   "experts": ["correctness", "security", "reliability", "maintainability"],
   "optionalExperts": ["perf"],
-  "project": { "units": [], "totals": {} },
+  "project": { "minFilesPerUnit": 30, "units": [], "totals": {} },
   "files": [],
   "testCommand": { "command": "mvn test", "source": "pom.xml" },
   "output": { "runDir": "...", "handoffDir": "...", "verdictJson": "...", "reportMarkdown": "..." }
@@ -259,6 +261,7 @@ subagent({
 ```
 
 - `units` 必须包含**所有** `project.units` id；缺失/非法 → handoff invalid。
+- 0.6.6 起，每个非 `skipped` 单元必须提供 `files`（实际读过的单元内路径，不能重复、不能跨单元），至少 `min(project.minFilesPerUnit, 单元文件数)` 个，并包含该单元 `core` 的全部路径；`filesRead` 由 `files.length` 得出。
 - `status` 只能是 `reviewed / sampled / skipped`；任一 `skipped` 会把 handoff 标为 `partial`，collect 不 complete。
 - `sampled` 算已覆盖，但报告必须把它写成“抽样”而不是“逐行审查”。
 - 每位专家还必须写自己的 Markdown 报告（>=500 字符、有 Markdown 标题、覆盖范围与发现、抽样/未验证说明）：`/logi` 为 `handoff/<expert>/<expert>.md`，单专家为 `handoff/<expert>.md`；总报告必须索引这份专家报告。
@@ -460,4 +463,4 @@ docs/logistics/latest.md # 仅默认四模块完整时更新
 - 日志：`lib/runlog.js`
 - CLI：`lib/cli/collect.mjs`、`bundle.mjs`、`verdict.mjs`
 - 专家 skill：`skills/logi-correctness|security|reliability|maintainability|perf/SKILL.md`
-- 测试：`test/*.test.js`（90 个）
+- 测试：`test/*.test.js`（92 个）

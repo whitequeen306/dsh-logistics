@@ -8,7 +8,7 @@
 >
 > 0.5.1 起，run 目录会带命令后缀：`/logi` 为 `...-master`，单专家为 `...-<expert>`；`/logi` 的 handoff 按专家分目录（`handoff/<expert>/<expert>.json`），单专家保持平铺（`handoff/<expert>.json`）。旧的平铺 run 仍可读取。
 >
-> 从 CodeCortexLoop（MIT，原仓库留存于 [master 分支](https://github.com/whitequeen306/dsh-logistics/tree/master)）迁移而来。0.2.0 删除评分、基线与门禁；0.3.0 起改为「主编模型 + 薄机器层」；0.4.0 把范围从改动集改成整个项目；0.5.0 把 `report.md` 定为唯一核心交付物，并要求每位专家单独写报告；0.5.1 让 run 目录和 `/logi` 的 handoff 按命令/专家分目录；0.6.0 移除 `/logi-fix`，插件不再提供写操作命令；0.6.1 在报告 contract 前增加确定性脱敏和残留凭据扫描；0.6.2 细化命令面板中的审查范围描述；0.6.3 把脱敏覆盖到全部运行产物，增加 finding 的 `direct`/`plan` 分区和结构化测试证据；0.6.4 把总报告改为按严重度排列并标注所属单元，同时生成 `graph.json` + `graph.html` 关系图；0.6.5 要求每条 finding 先写一句面向非开发者的“简述”，再接详细问题、证据、影响和修复。设计记录见 [MODULE-DECISION.md](./MODULE-DECISION.md)。
+> 从 CodeCortexLoop（MIT，原仓库留存于 [master 分支](https://github.com/whitequeen306/dsh-logistics/tree/master)）迁移而来。0.2.0 删除评分、基线与门禁；0.3.0 起改为「主编模型 + 薄机器层」；0.4.0 把范围从改动集改成整个项目；0.5.0 把 `report.md` 定为唯一核心交付物，并要求每位专家单独写报告；0.5.1 让 run 目录和 `/logi` 的 handoff 按命令/专家分目录；0.6.0 移除 `/logi-fix`，插件不再提供写操作命令；0.6.1 在报告 contract 前增加确定性脱敏和残留凭据扫描；0.6.2 细化命令面板中的审查范围描述；0.6.3 把脱敏覆盖到全部运行产物，增加 finding 的 `direct`/`plan` 分区和结构化测试证据；0.6.4 把总报告改为按严重度排列并标注所属单元，同时生成 `graph.json` + `graph.html` 关系图；0.6.5 要求每条 finding 先写一句面向非开发者的“简述”，再接详细问题、证据、影响和修复；0.6.6 为每个单元标出核心必读文件，并要求专家声明实际读过的文件清单。设计记录见 [MODULE-DECISION.md](./MODULE-DECISION.md)。
 
 ## 核心交付物
 
@@ -54,7 +54,7 @@ C:\path\to\dsh-logistics
 **CLI / 非桌面 profile**：
 
 ```bash
-dsh plugin --profile web add dsh-logistics@0.6.2   # 0.6.5 仍在源码中，尚未发布
+dsh plugin --profile web add dsh-logistics@0.6.5   # 0.6.6 仍在源码中，尚未发布
 dsh plugin --profile web add "C:/path/to/dsh-logistics"   # 本地开发
 dsh --profile web --dump-config | grep -A2 dsh-logistics
 ```
@@ -147,7 +147,8 @@ dsh --profile web --dump-config | grep -A2 dsh-logistics
 ```
 
 - 默认按 `backend/*`、`frontend/*`、`packages/*`、`apps/*`、`services/*` 等模块归组；小目录会合并，大模块按文件数拆成 `(1/N)`。
-- `project.maxFilesPerUnit` 控制单个单元的文件数，`project.maxUnits` 控制单元总数，`project.maxFiles` 控制总审查文件上限。
+- 每个单元带一份 `core` 核心必读清单（构建/配置、入口、认证/安全、迁移、路由/控制器/服务链路、最大文件，最多 12 个）；专家必须在 handoff 的 `units[].files` 列出实际读过的路径，至少 `project.minFilesPerUnit` 个（单元更小则全读），且覆盖全部 `core`。
+- `project.maxFilesPerUnit` 控制单个单元的文件数，`project.maxUnits` 控制单元总数，`project.maxFiles` 控制总审查文件上限，`project.minFilesPerUnit` 控制每单元最低读文件数（默认 30）。
 - 文档、图片、依赖、构建产物、锁文件、`.logistics` 生成物不会进入审查；配置和构建描述（`pom.xml`、`package.json`、CI、Docker）会进入。
 - 超过 `project.maxFiles` 会截断并写进 `totals.truncated`，报告必须说明。
 
@@ -252,7 +253,8 @@ docs/logistics/latest.md      # 仅默认四模块完整时更新
   "project": {
     "maxFiles": 2000,
     "maxFilesPerUnit": 120,
-    "maxUnits": 12
+    "maxUnits": 12,
+    "minFilesPerUnit": 30
   },
   "testCommand": "pnpm test",
   "modules": {
@@ -273,6 +275,7 @@ docs/logistics/latest.md      # 仅默认四模块完整时更新
 - `project.maxFiles`：送入审查的文件总上限，默认 2000；超出时截断并写 `totals.truncated`。
 - `project.maxFilesPerUnit`：单个审查单元的文件上限，默认 120；大模块会拆成 `(1/N)`。
 - `project.maxUnits`：审查单元总数上限，默认 12；小目录会合并。
+- `project.minFilesPerUnit`：每个非 skipped 单元至少实际读过的文件数，默认 30；单元文件更少时按单元大小全读。不能大于 `maxFilesPerUnit`。
 - `maxFindingsPerPass`：单个专家最多保留的问题数，默认 12；超过会被判无效，不会静默截断。
 - `testCommand`：显式指定测试命令，会覆盖自动检测；为空时自动从根目录和一级子目录的 `package.json` / Maven / Gradle / `pytest` / `go` / `cargo` 推断，最多返回 8 条（例如前端 npm、后端 Maven、Python sidecar 各一条）。
 - `modules`：模块显示名覆盖；不配置时按 `packages/*`、`apps/*`、去掉 `src`/`lib`/`app` 前缀后的首段推导。
@@ -289,7 +292,7 @@ docs/logistics/latest.md      # 仅默认四模块完整时更新
 ## 适用边界
 
 - **审查只读**：`/logi-*` 审查命令不会改源码；插件本身没有写操作命令。需要修复时由主模型按报告执行，受 DSH 权限与审批约束。
-- **一位专家覆盖整个项目**：大型项目里专家会做跨文件模式扫描并抽样读关键文件，`handoff.units` 的 `sampled` / `skipped` 是诚实的覆盖声明；不要把 `sampled` 当成逐行审查。
+- **一位专家覆盖整个项目**：大型项目里专家会做跨文件模式扫描并抽样读关键文件，`handoff.units` 的 `sampled` / `skipped` 是诚实的覆盖声明；`sampled` 仍必须覆盖该单元全部 `core` 且达到最低读取数，不要把 `sampled` 当成逐行审查。
 - **不是编译器**：静态分析基于专家判断；跨仓库、运行时才暴露的问题可能漏报。
 - **部分覆盖不等于通过**：单专家报告仍然覆盖整个项目，但只代表该专家维度；报告会明确标出未覆盖单元和维度。
 - **大型项目**：默认最多 2000 个文件、12 个单元、单专家 12 条问题；更大的仓库可调高 `project` 上限，或分目录建立多个 run。
@@ -298,7 +301,7 @@ docs/logistics/latest.md      # 仅默认四模块完整时更新
 ## 开发
 
 ```bash
-npm test          # node --test，90 个测试（含全项目 scope、单元覆盖、报告契约、测试证据、脱敏、端到端 contract 与运行日志）
+npm test          # node --test，92 个测试（含全项目 scope、单元覆盖、核心文件/最低读取、报告契约、测试证据、脱敏、端到端 contract 与运行日志）
 npm run check     # 语法检查 + 全部测试
 ```
 

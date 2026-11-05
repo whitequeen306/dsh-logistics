@@ -32,6 +32,12 @@ test('project plan groups every source file into review units', () => {
     assert.ok(created.scope.project.totals.lines > 0)
     const ids = created.scope.project.units.map((unit) => unit.id)
     assert.equal(new Set(ids).size, ids.length)
+    for (const unit of created.scope.project.units) {
+      assert.ok(Array.isArray(unit.core))
+      assert.ok(unit.core.length > 0)
+      assert.equal(unit.core.length, unit.stats.coreFiles)
+    }
+    assert.ok(created.scope.project.units.some((unit) => unit.core.includes('package.json')))
   } finally {
     cleanup(root)
   }

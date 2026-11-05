@@ -33,6 +33,7 @@ directory and `scope.json`; your output is one handoff JSON plus one Markdown ex
 - Write to the exact JSON handoff path given in the child prompt (`/logi`: `<handoffDir>/<expert>/<expert>.json`; single-expert: `<handoffDir>/<expert>.json`) before replying, with:
   `{"schemaVersion":2,"expert":"<expert>","status":"ok|partial|failed","summary":"...","sections":{...},"tests":{"commands":[{"command":"...","status":"passed|failed|not-run","note":"..."}]},"findings":[...],"deferred":[],"notes":""}`
 - `tests.commands` 必须逐条覆盖 scope.testCommands（passed/failed/not-run + 原因）；不能省略或写“测试通过”概括。
+- 0.6.6 起，每个非 skipped 单元必须提供 `files`（实际读过的单元内路径，数量不少于 `project.minFilesPerUnit`，单元更小则全读），且必须覆盖该单元 `core` 的全部路径；漏读核心会使 handoff invalid。
 - Also write the matching Markdown report at the exact path given in the child prompt (`/logi`: `<handoffDir>/<expert>/<expert>.md`; single-expert: `<handoffDir>/<expert>.md`)（至少 500 字符）：Markdown 标题、覆盖的全部单元、发现项（简述 → 详细问题 → `file:line` → 证据 → 影响 → 修复）、抽样/未验证说明、建议修复顺序。总报告会索引这份专家报告。
 - Read-only: never edit source, commit, delete, format, install, or spawn another agent.
 

@@ -96,7 +96,12 @@ export function projectHandoff(expert, scope, findings = [], extra = {}) {
   const units = Object.fromEntries(
     (scope.project?.units ?? []).map((unit) => [
       unit.id,
-      { status: 'reviewed', filesRead: unit.stats?.files ?? 0, notes: 'test coverage' },
+      {
+        status: 'reviewed',
+        filesRead: (unit.files ?? []).length,
+        files: (unit.files ?? []).map((file) => file.path),
+        notes: 'test coverage',
+      },
     ]),
   )
   const reportPath = handoffMarkdownPath(scope, expert)

@@ -32,12 +32,14 @@ directory and `scope.json`; your output is one handoff JSON plus one Markdown ex
 - Write to the exact JSON handoff path given in the child prompt (`/logi`: `<handoffDir>/<expert>/<expert>.json`; single-expert: `<handoffDir>/<expert>.json`) before replying, with:
   `{"schemaVersion":2,"expert":"<expert>","status":"ok|partial|failed","summary":"...","sections":{...},"tests":{"commands":[{"command":"...","status":"passed|failed|not-run","note":"..."}]},"findings":[...],"deferred":[],"notes":""}`
 - `tests.commands` 必须逐条覆盖 scope.testCommands（passed/failed/not-run + 原因）；不能省略或写“测试通过”概括。
-- Also write the matching Markdown report at the exact path given in the child prompt (`/logi`: `<handoffDir>/<expert>/<expert>.md`; single-expert: `<handoffDir>/<expert>.md`)（至少 500 字符）：Markdown 标题、覆盖的全部单元、发现项（简述 → 详细问题 → `file:line` → 证据 → 影响 → 修复）、抽样/未验证说明、建议修复顺序。总报告会索引这份专家报告。
+- 0.6.6 起，每个非 skipped 单元必须提供 `files`（实际读过的单元内路径，数量不少于 `project.minFilesPerUnit`，单元更小则全读），且必须覆盖该单元 `core` 的全部路径；漏读核心会使 handoff invalid。
+- Also write the matching Markdown report at the exact path given in the child prompt (`/logi`: `<handoffDir>/<expert>/<expert>.md`; single-expert: `<handoffDir>/<expert>.md`)（至少 500 字符）：Markdown 标题、覆盖的全部单元、发现项（简述 → 详细问题 → `file:line` → 证据 → 影响 → 修复）、**`## 耦合度` 一节**、抽样/未验证说明、建议修复顺序。总报告会索引这份专家报告。
+- `## 耦合度` 不是可选装饰：写清模块依赖方向、循环/双向依赖、跨层或跨模块直接访问内部实现、共享数据库/持久化、改一个概念需要联动修改的文件范围；即使没有发现问题，也要写扫描范围和判断依据。
 - Read-only: never edit source, commit, delete, format, install, or spawn another agent.
 
 ## First pass: change cost
 
-1. Read `scope.json` and the diff. What future change becomes harder because of this?
+1. Read `scope.json` and the whole project units. What future change becomes harder because of this?
 2. Find the entry points/consumers with `rg` before calling anything unused.
 3. State the behaviour that must not change. If you cannot, the finding is not a
    simplification — defer it or drop it.
@@ -68,8 +70,10 @@ directory and `scope.json`; your output is one handoff JSON plus one Markdown ex
 - Bidirectional dependency/cycle; a low-level util importing app/UI code.
 - A change to one concept requires edits in unrelated files.
 - A class/function that knows too many collaborators; hidden global state.
-- Only report coupling introduced or worsened by the diff; pre-existing debt is at most
-  `low`/`info`.
+- **Full-project audit**: report pre-existing coupling too when it materially raises
+  change cost; do not downgrade it merely because it was not introduced by a diff.
+- Distinguish direct dependency, indirect dependency, cycle, and runtime coupling;
+  cite the import/query/call edge, not just "feels coupled".
 
 ### Testability and API surface
 

@@ -1,6 +1,6 @@
 {
   "name": "dsh-logistics",
-  "version": "0.6.5",
+  "version": "0.6.6",
   "description": "Project logistics for DeepSeek Harness — whole-project review reports from five specialist subagents, with one core report and stable finding IDs.",
   "type": "module",
   "main": "./lib/index.js",

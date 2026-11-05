@@ -2,6 +2,24 @@
 
 All notable changes to this project. Format follows [Keep a Changelog](https://keepachangelog.com/); versions use [SemVer](https://semver.org/).
 
+## [0.6.6] - 2026-11-05
+
+### Added
+
+- 每个审查单元新增 `core` 核心必读清单：构建/配置、入口、认证/安全、迁移、路由/控制器/服务链路、最大文件，最多 12 个。
+- 新增 `project.minFilesPerUnit`（默认 30）；非 skipped 单元必须在 handoff 的 `units[].files` 列出实际读过的单元内路径，至少达到该最低值，并覆盖全部 `core`。
+- `handoff` 校验会拒绝缺少文件清单、文件数不足、重复/跨单元路径或漏读核心文件的 handoff；`filesRead` 由 `files.length` 得出。
+- `scope.project.units[].core`、`stats.coreFiles` 和总报告/专家 prompt 展示核心清单。
+
+### Changed
+
+- 专家 prompt 明确每条审查链路的核心文件不能跳过；`sampled` 也必须覆盖 `core` 并达到最低读取数。
+- 测试增至 92 个，新增核心文件选择、最低读取、漏读核心和缺少文件清单用例。
+
+### Notes
+
+- 本次不打包、不发布；0.6.5 仍是 npm 最新版。
+
 ## [0.6.5] - 2026-11-05
 
 ### Added
