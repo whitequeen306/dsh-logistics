@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import test from 'node:test'
+import { DEFAULT_EXPERTS } from '../lib/constants.js'
 import { buildReport, readLatestReport } from '../lib/report.js'
 import {
   cleanup,
@@ -22,7 +23,7 @@ test('builds a complete module report with no score or gate', () => {
   const root = initRepo()
   try {
     write(root, 'src/a.js', 'export function add(a, b) {\n  return a - b\n}\n')
-    const created = makeScope(root, ['correctness', 'security', 'reliability', 'maintainability'])
+    const created = makeScope(root, [...DEFAULT_EXPERTS])
     writeHandoffs(created, {
       correctness: [sampleFinding('correctness', { title: '加法写成了减法' })],
       security: [sampleFinding('security', {
@@ -39,6 +40,7 @@ test('builds a complete module report with no score or gate', () => {
         title: '重复分支',
         kind: 'plan',
       })],
+      perf: [],
     })
 
     const { report, reportJsonPath, latestMarkdownPath } = buildReport({
@@ -50,8 +52,8 @@ test('builds a complete module report with no score or gate', () => {
 
     assert.equal(report.schemaVersion, 2)
     assert.equal(report.coverage.complete, true)
-    assert.equal(report.coverage.full, false)
-    assert.deepEqual(report.coverage.expected, ['correctness', 'security', 'reliability', 'maintainability'])
+    assert.equal(report.coverage.full, true)
+    assert.deepEqual(report.coverage.expected, [...DEFAULT_EXPERTS])
     assert.equal(report.counts.total, 3)
     assert.equal(report.counts.direct, 2)
     assert.equal(report.counts.plan, 1)

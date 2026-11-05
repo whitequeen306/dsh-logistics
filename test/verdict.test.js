@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { readFileSync, rmSync } from 'node:fs'
+import { readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -59,15 +59,14 @@ test('project verdict requires a non-developer brief for 0.6.5 findings', () => 
   }
 })
 
-test('collect distinguishes optional-not-selected from required-missing', () => {
+test('collect reports missing required experts and invents no optional perf', () => {
   const root = initRepo()
   try {
     const created = makeScope(root, ['security'])
     const result = runCli(pluginRoot, 'collect.mjs', ['--run', created.runDir])
     assert.equal(result.code, 0)
     assert.match(result.output, /security: missing/u)
-    assert.match(result.output, /perf: not-selected/u)
-    assert.doesNotMatch(result.output, /perf: missing/u)
+    assert.doesNotMatch(result.output, /perf:/u)
   } finally {
     cleanup(root)
   }
@@ -489,6 +488,27 @@ test('legacy 0.4 project verdicts stay readable without expert reports', () => {
     const result = validateVerdict({ root, scope: created.scope, verdict })
     assert.equal(result.ok, true, result.errors.join('\n'))
     assert.match(result.warnings.join('\n'), /旧版 0.4\.x 运行没有专家报告/u)
+  } finally {
+    cleanup(root)
+  }
+})
+
+test('0.7.0 maintainability expert report requires a coupling section', () => {
+  const root = initRepo()
+  try {
+    const created = makeProjectScope(root, ['maintainability'])
+    write(
+      created.runDir,
+      'handoff/maintainability.json',
+      JSON.stringify(projectHandoff('maintainability', created.scope, []), null, 2),
+    )
+    write(created.runDir, 'report.md', aggregateReport(created.scope, []))
+    const expertPath = join(created.scope.output.handoffDir, 'maintainability', 'maintainability.md')
+    const withoutCoupling = readFileSync(expertPath, 'utf8').replace(/## 耦合度[\s\S]*?(?=## |$)/u, '')
+    writeFileSync(expertPath, withoutCoupling)
+
+    const result = validateReport({ scope: created.scope, verdict: { findings: [] } })
+    assert.equal(result.errors.some((error) => /耦合度/u.test(error)), true, result.errors.join('\n'))
   } finally {
     cleanup(root)
   }

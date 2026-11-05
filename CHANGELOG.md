@@ -2,6 +2,22 @@
 
 All notable changes to this project. Format follows [Keep a Changelog](https://keepachangelog.com/); versions use [SemVer](https://semver.org/).
 
+## [0.7.0] - 2026-11-05
+
+### Changed
+
+- `/logi` 默认专家从四位改为五位：性能（perf）纳入默认全项目审查；`OPTIONAL_EXPERTS` 为空，`/logi-perf` 仍可用于单维度重跑。
+- 安全专家新增 `business-logic` 检查面（优惠/价格/配额/竞态/退款/枚举），供应链要求核对 manifest 与安装脚本；没有 lockfile 时必须写“依赖版本未能核实”。
+- 健壮性专家拆成 `error-handling`、`resilience`、`observability`、`tests` 四个可审计 section，补超时、背压、降级和可观测性。
+- 可维护性专家拆出独立 `coupling` section；0.7.0 起专家报告必须包含 `## 耦合度`，说明依赖方向、环、跨层/内部访问、共享持久化和变更放大。
+- correctness/security 的 diff-only 措辞清理为全项目审查；架构债不再只报“本次 diff 引入/加重”的问题。
+- 默认 `/logi` 描述改为“五位专家”；相关 docs、prompt 和测试同步。
+- 测试增至 99 个，新增五专家默认、section 扩展和耦合度 contract 用例。
+
+### Notes
+
+- 本次只做源码修改，尚未打包/发布；npm 最新仍是 0.6.6。
+
 ## [0.6.7] - 2026-11-05
 
 ### Fixed

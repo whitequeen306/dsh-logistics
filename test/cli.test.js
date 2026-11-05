@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { DEFAULT_EXPERTS } from '../lib/constants.js'
 import { buildReport } from '../lib/report.js'
 import {
   cleanup,
@@ -64,18 +65,19 @@ test('collect warns about handoff temp files instead of silently accepting them'
 test('aggregate writes a module report and exits 0 only for complete coverage', () => {
   const root = initRepo()
   try {
-    const created = makeScope(root, ['correctness', 'security', 'reliability', 'maintainability'])
+    const created = makeScope(root, [...DEFAULT_EXPERTS])
     writeHandoffs(created, {
       correctness: [sampleFinding('correctness', { title: '边界判断错误' })],
       security: [],
       reliability: [],
       maintainability: [],
+      perf: [],
     })
 
     const result = runCli(pluginRoot, 'aggregate.mjs', ['--run', created.runDir])
     assert.equal(result.code, 0)
     assert.match(result.output, /report: .*report\.json/u)
-    assert.match(result.output, /coverage: 4\/4 \(complete=true, publishable=true\)/u)
+    assert.match(result.output, /coverage: 5\/5 \(complete=true, publishable=true\)/u)
     assert.match(result.output, /findings: total=1/u)
     assert.match(result.output, /direct: 1/u)
     assert.doesNotMatch(result.output, /score|gate|baseline/u)

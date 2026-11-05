@@ -67,7 +67,7 @@ test('registers exactly six commands', () => {
   assert.match(security.description, /供应链/u)
 })
 
-test('/logi creates a four-expert pipeline scope and queues one dispatch', async () => {
+test('/logi creates a five-expert pipeline scope and queues one dispatch', async () => {
   const root = initRepo()
   try {
     const { invocation: inv, messages } = invocation(root)
@@ -75,7 +75,7 @@ test('/logi creates a four-expert pipeline scope and queues one dispatch', async
     const result = await command.handler(inv)
 
     assert.equal(result.kind, 'success')
-    assert.match(result.text, /4 位专家/u)
+    assert.match(result.text, /5 位专家/u)
     assert.match(result.text, /全项目/u)
     assert.match(result.text, /产物目录不要提交/u)
     assert.match(result.text, /\.logistics\//u)
@@ -86,7 +86,7 @@ test('/logi creates a four-expert pipeline scope and queues one dispatch', async
     assert.match(messages[0].content[0].text, /logi-correctness/u)
 
     const scope = JSON.parse(readFileSync(join(latestRunDir(root), 'scope.json'), 'utf8'))
-    assert.deepEqual(scope.experts, ['correctness', 'security', 'reliability', 'maintainability'])
+    assert.deepEqual(scope.experts, ['correctness', 'security', 'reliability', 'maintainability', 'perf'])
     assert.equal(scope.schemaVersion, 2)
     assert.equal(scope.mode, 'project')
     assert.equal(scope.source, 'project')

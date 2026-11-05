@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
+import { DEFAULT_EXPERTS } from '../lib/constants.js'
 import { publishLatest, shouldPublishLatest } from '../lib/latest.js'
 import { cleanup, initRepo, makeProjectScope, write } from './helpers.js'
 
 test('publishes latest only for a complete default /logi run', () => {
   const root = initRepo()
   try {
-    const { scope } = makeProjectScope(root, ['correctness', 'security', 'reliability', 'maintainability'])
+    const { scope } = makeProjectScope(root, [...DEFAULT_EXPERTS])
     write(scope.output.runDir, 'report.md', '# Final report\n\ncoverage complete\n')
     assert.equal(shouldPublishLatest(scope), true)
 
@@ -44,7 +45,7 @@ test('does not publish single-expert or non-default runs', () => {
 test('fails closed when the final report is missing', () => {
   const root = initRepo()
   try {
-    const { scope } = makeProjectScope(root, ['correctness', 'security', 'reliability', 'maintainability'])
+    const { scope } = makeProjectScope(root, [...DEFAULT_EXPERTS])
     assert.throws(() => publishLatest(scope), /缺少最终 report\.md/u)
   } finally {
     cleanup(root)

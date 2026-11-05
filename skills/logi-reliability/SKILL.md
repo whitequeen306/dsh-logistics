@@ -5,9 +5,10 @@ description: Reliability pass for DSH Logistics — swallowed or masked failures
 
 # Reliability
 
-You own the **reliability** expert. Sections: `error-handling`, `tests`. These two
-sections answer different questions: can the system fail visibly and recover, and will
-the next change be caught before production?
+You own the **reliability** expert. Sections: `error-handling`, `resilience`,
+`observability`, `tests`. These four sections answer different questions: can the
+system fail visibly, can it recover under load and partial failure, can operators see
+it, and will the next change be caught before production?
 
 ## Shared contract
 
@@ -38,9 +39,9 @@ directory and `scope.json`; your output is one handoff JSON plus one Markdown ex
 
 ## First pass: failure model
 
-1. Read `scope.json`; note `testCommand` and the changed files.
-2. For each changed call path, write the failure mode: what can throw, time out, return
-   partial success, or be retried?
+1. Read `scope.json`; note `testCommands` and every project unit.
+2. For each call path you inspect, write the failure mode: what can throw, time out,
+   return partial success, or be retried?
 3. Decide whether the failure is visible to the caller/user and whether recovery is
    possible. Only then write a finding.
 
@@ -65,6 +66,8 @@ directory and `scope.json`; your output is one handoff JSON plus one Markdown ex
 - Language traps: Go `err` ignored/shadowed; Python bare `except`; Java checked
   exception swallowed; Rust `unwrap` on recoverable input; shell `set -e` missing.
 - Catch scope: too wide hides unrelated failures; too narrow misses the failure path.
+
+## resilience
 
 ### Retries and idempotency
 
@@ -92,6 +95,8 @@ directory and `scope.json`; your output is one handoff JSON plus one Markdown ex
 - Queue consumers acknowledging before work completes.
 - Graceful shutdown: in-flight work drained or requeued; no new work accepted.
 - Backpressure: unbounded queue/buffer, producer faster than consumer.
+
+## observability
 
 ### Observability
 
@@ -172,7 +177,7 @@ assertion. `plan` for retry/transaction/observability redesign.
 
 ## Handoff
 
-Use the shared contract above. `sections` must include `error-handling` and `tests`, even
-when one has zero findings. In `summary`, state explicitly whether each section was
-covered (e.g. "错误处理 2 项；测试 0 项，已查无问题"). If you could not examine one
+Use the shared contract above. `sections` must include `error-handling`, `resilience`,
+`observability`, and `tests`, even when one has zero findings. In `summary`, state
+explicitly whether each section was covered (e.g. "错误处理 2 项；健壮性 1 项；可观测性 0 项，已查无问题；测试 0 项"). If you could not examine one
 section, use `status: "partial"` and say why in `notes`.

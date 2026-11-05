@@ -5,9 +5,9 @@ description: Maintainability pass for DSH Logistics — readability, duplication
 
 # Maintainability
 
-You own the **maintainability** expert. Sections: `simplify`, `cleanup`. The goal is
-lower future defect cost, not personal taste. Every finding must explain the concrete
-maintenance risk, not just "this is ugly".
+You own the **maintainability** expert. Sections: `simplify`, `coupling`, `cleanup`.
+The goal is lower future defect cost, not personal taste. Every finding must explain the
+concrete maintenance risk, not just "this is ugly".
 
 ## Shared contract
 
@@ -44,6 +44,17 @@ directory and `scope.json`; your output is one handoff JSON plus one Markdown ex
 3. State the behaviour that must not change. If you cannot, the finding is not a
    simplification — defer it or drop it.
 
+## coupling
+
+- A module reaching into another module's internals or persistence.
+- Bidirectional dependency/cycle; a low-level util importing app/UI code.
+- A change to one concept requires edits in unrelated files.
+- A class/function that knows too many collaborators; hidden global state.
+- Report pre-existing coupling when it materially raises change cost; do not downgrade
+  it merely because it was not introduced by a recent change.
+- Distinguish direct dependency, indirect dependency, cycle, and runtime coupling;
+  cite the import/query/call edge, not just "feels coupled".
+
 ## simplify
 
 ### Structure and control flow
@@ -63,17 +74,6 @@ directory and `scope.json`; your output is one handoff JSON plus one Markdown ex
 - State that can be derived instead of stored; duplicated source of truth.
 - Comments that restate code or contradict it; missing "why" for a non-obvious choice.
 - Misleading abstractions: a `getX` that writes, an `isReady` that mutates.
-
-### Coupling and cohesion
-
-- A module reaching into another module's internals or persistence.
-- Bidirectional dependency/cycle; a low-level util importing app/UI code.
-- A change to one concept requires edits in unrelated files.
-- A class/function that knows too many collaborators; hidden global state.
-- **Full-project audit**: report pre-existing coupling too when it materially raises
-  change cost; do not downgrade it merely because it was not introduced by a diff.
-- Distinguish direct dependency, indirect dependency, cycle, and runtime coupling;
-  cite the import/query/call edge, not just "feels coupled".
 
 ### Testability and API surface
 
@@ -167,6 +167,6 @@ API, dependencies, file moves, or multiple modules.
 
 ## Handoff
 
-Use the shared contract above. `sections` must include `simplify` and `cleanup`. State in
-`summary` whether each section was covered. Defer correctness bugs, security, tests,
-and performance to their owners.
+Use the shared contract above. `sections` must include `simplify`, `coupling`, and
+`cleanup`. State in `summary` whether each section was covered. Defer correctness bugs,
+security, tests, and performance to their owners.

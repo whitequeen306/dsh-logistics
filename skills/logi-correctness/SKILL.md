@@ -7,7 +7,7 @@ description: Correctness pass for DSH Logistics — logic, state, concurrency, d
 
 You own the **correctness** expert. Sections: `logic`, `state`, `concurrency`,
 `data-integrity`, `contracts`, `architecture`, `edge-cases`. Report only defects you
-can prove from the changed code.
+can prove from the whole-project code, not from a diff or a single changed file.
 
 ## Shared contract
 
@@ -38,11 +38,11 @@ directory and `scope.json`; your output is one handoff JSON plus one Markdown ex
 
 ## First pass: intent and blast radius
 
-1. Read `scope.json` and the change. What user-visible behaviour was supposed to change?
-2. List the call sites and data stores that depend on the changed code. Search, don't guess.
-3. For every changed branch, write the intended input → output in one line.
-4. Only then run the section checklists. If a section has no plausible trigger in this
-   diff, record 0 with a one-line reason in `notes`; do not invent a finding.
+1. Read `scope.json` and every project unit listed there. What user-visible behaviour does the project promise?
+2. List the call sites and data stores that participate in each unit. Search, don't guess.
+3. For every operation you inspect, write the intended input → output in one line.
+4. Only then run the section checklists. If a section has no plausible trigger in the
+   project, record 0 with a one-line reason in `notes`; do not invent a finding.
 
 ## What to inspect
 
@@ -117,8 +117,8 @@ directory and `scope.json`; your output is one handoff JSON plus one Markdown ex
   the boundary is wrong.
 - API surface: exported symbol has no consumer, or a public boundary exposes an
   implementation detail.
-- Only report when the changed diff introduces or worsens the boundary; pre-existing
-  architecture debt is `info`/`low` at most, not a blocking finding.
+- Report pre-existing architecture debt too when it raises change cost or hides a
+  correctness risk; do not dismiss it because it was not introduced by a recent change.
 
 ### edge-cases
 

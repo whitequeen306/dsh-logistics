@@ -1,6 +1,6 @@
-# dsh-logistics 架构与执行模型（0.6.7）
+# dsh-logistics 架构与执行模型（0.7.0）
 
-> 本文描述 **0.6.7 已实现**的结构，不是路线图。0.4.0 把审查范围从「工作区 diff / 最近提交」改成**整个项目**：`git ls-files` 全量清单 → 文件分类 → 模块切分 → 审查单元；每个专家覆盖全部单元，并用 handoff 的 `units` 映射声明 reviewed / sampled / skipped。0.5.0 把 `report.md` 定为核心交付物，要求每位专家另写报告，并由 `lib/report-check.js` 做 contract 校验。0.5.1 给 run 目录加命令后缀（`/logi` 为 `-master`，单专家为 `-<expert>`），并让 `/logi` 的 handoff 按专家分目录，旧平铺 run 仍可读。0.6.0 移除 `/logi-fix` 与独立 fixer，插件不提供写操作命令；审查子代理仍受 prompt 约束，需要修复时由用户把报告或 finding 交给主模型。0.6.1 在报告 contract 校验前加入确定性脱敏与残留凭据扫描；0.6.2 细化 DSH 命令面板中的审查范围描述；0.6.3 把脱敏扩展到 run 目录下全部文本产物，增加结构化测试证据与 `direct`/`plan` 报告分区；0.6.4 把总报告改为按严重度排序并标注所属单元，并生成 `graph.json` + `graph.html` 关系图；0.6.5 要求 finding 先写面向非开发者的 `brief`，再写详细问题、证据、影响和修复；0.6.6 为每个单元增加核心必读清单和最低实际读取数，handoff 必须列出实际读过的文件；0.6.7 把脱敏扩展到 `.bak`、临时脚本等常规文本产物，`latest` 只由最终 contract 通过的默认 `/logi` 发布，并要求模型删除自己创建的临时文件。0.3.x 的主编模型、contract 校验和运行日志继续保留。
+> 本文描述 **0.7.0 已实现**的结构，不是路线图。0.4.0 把审查范围从「工作区 diff / 最近提交」改成**整个项目**：`git ls-files` 全量清单 → 文件分类 → 模块切分 → 审查单元；每个专家覆盖全部单元，并用 handoff 的 `units` 映射声明 reviewed / sampled / skipped。0.5.0 把 `report.md` 定为核心交付物，要求每位专家另写报告，并由 `lib/report-check.js` 做 contract 校验。0.5.1 给 run 目录加命令后缀（`/logi` 为 `-master`，单专家为 `-<expert>`），并让 `/logi` 的 handoff 按专家分目录，旧平铺 run 仍可读。0.6.0 移除 `/logi-fix` 与独立 fixer，插件不提供写操作命令；审查子代理仍受 prompt 约束，需要修复时由用户把报告或 finding 交给主模型。0.6.1 在报告 contract 校验前加入确定性脱敏与残留凭据扫描；0.6.2 细化 DSH 命令面板中的审查范围描述；0.6.3 把脱敏扩展到 run 目录下全部文本产物，增加结构化测试证据与 `direct`/`plan` 报告分区；0.6.4 把总报告改为按严重度排序并标注所属单元，并生成 `graph.json` + `graph.html` 关系图；0.6.5 要求 finding 先写面向非开发者的 `brief`，再写详细问题、证据、影响和修复；0.6.6 为每个单元增加核心必读清单和最低实际读取数，handoff 必须列出实际读过的文件；0.6.7 把脱敏扩展到 `.bak`、临时脚本等常规文本产物，`latest` 只由最终 contract 通过的默认 `/logi` 发布，并要求模型删除自己创建的临时文件；0.7.0 将性能纳入默认 `/logi`，补齐 maintainability 的耦合度、reliability 的 resilience/observability、security 的业务逻辑滥用，并清理 correctness/security 的 diff 语义。0.3.x 的主编模型、contract 校验和运行日志继续保留。
 
 ## 1. 一句话模型
 
@@ -14,7 +14,7 @@
   → 主会话模型合并/去重/定级/取舍，写 verdict.json + report.md
   → verdict.mjs 先脱敏本次 run 的全部常规文本产物，再校验 contract（含 report.md、专家报告、测试证据、direct/plan 分区与严重度排序；不判断内容好坏）
   → 生成 graph.json + graph.html（模块/问题/关系图）
-  → 默认四模块完整且最终 contract 通过时才更新 latest
+  → 默认五专家完整且最终 contract 通过时才更新 latest
 ```
 
 关键点：**机器负责事实与安全边界，模型负责判断与成文。** 一个专家一个 child，不是「单元 × 专家」几十个 child；覆盖是否真实由 handoff 的单元映射和机器校验共同约束。
@@ -54,18 +54,18 @@ cli → scope / handoffs / verdict
 | key | 命令 | 默认 | sections | 职责 |
 | --- | --- | --- | --- | --- |
 | `correctness` | `/logi-correctness` | 是 | logic, state, concurrency, data-integrity, contracts, architecture, edge-cases | 逻辑、状态、并发、数据完整性、契约、架构边界、边界输入 |
-| `security` | `/logi-security` | 是 | auth, authz, injection, browser, uploads, secrets, crypto, exposure, supply-chain | 信任边界、认证、授权、注入、浏览器、上传、密钥、加密、暴露、供应链 |
-| `reliability` | `/logi-reliability` | 是 | error-handling, tests | 吞错/传播/重试/幂等/部分失败/超时/可观测性 + 回归缺口 |
-| `maintainability` | `/logi-maintainability` | 是 | simplify, cleanup | 结构、耦合、可测试性、API 表面、死代码、依赖、配置孤儿 |
-| `perf` | `/logi-perf` | 否 | hot-path, data-access, runtime, frontend, memory-startup | 热路径复杂度、数据库访问、运行时阻塞、前端渲染/包体、内存/启动；只出 `plan` |
+| `security` | `/logi-security` | 是 | auth, authz, injection, browser, uploads, secrets, crypto, exposure, business-logic, supply-chain | 信任边界、认证、授权、注入、浏览器、上传、密钥、加密、暴露、业务逻辑滥用、供应链 |
+| `reliability` | `/logi-reliability` | 是 | error-handling, resilience, observability, tests | 吞错/传播/重试/幂等/部分失败/超时/背压/降级/可观测性 + 回归缺口 |
+| `maintainability` | `/logi-maintainability` | 是 | simplify, coupling, cleanup | 结构、耦合/依赖方向、可测试性、API 表面、死代码、依赖、配置孤儿 |
+| `perf` | `/logi-perf` | 是 | hot-path, data-access, runtime, frontend, memory-startup | 热路径复杂度、数据库访问、运行时阻塞、前端渲染/包体、内存/启动；只出 `plan` |
 
-`/logi` 默认跑前四个，**不会自动追加** `perf`；需要性能维度时单独执行 `/logi-perf`。`/logi` 报告必须写“性能未运行”，不能把未检查当成没问题。
+`/logi` 默认跑五位专家，`perf` 已纳入默认范围；`/logi-perf` 用于只重跑性能维度。报告必须给出性能判断；没有证据时写“未验证/未覆盖”。
 
 ## 4. 命令与执行方法
 
 | 命令 | 类型 | 子代理 | 写源码 |
 | --- | --- | --- | --- |
-| `/logi` | 多专家全项目审查 | 4 | 否 |
+| `/logi` | 多专家全项目审查 | 5 | 否 |
 | `/logi-correctness` | 单专家全项目审查 | 1 | 否 |
 | `/logi-security` | 单专家全项目审查 | 1 | 否 |
 | `/logi-reliability` | 单专家全项目审查 | 1 | 否 |
@@ -154,15 +154,15 @@ groupUnits:
 ```json
 {
   "schemaVersion": 2,
-  "version": "0.6.7",
+  "version": "0.7.0",
   "runId": "20261104-...",
   "mode": "project",
   "source": "project",
   "root": "C:/path/project",
   "git": { "branch": "main", "head": "abc123", "dirty": false },
   "stats": { "analyzedFiles": 1102, "additions": 150079, "deletions": 0, "truncated": false },
-  "experts": ["correctness", "security", "reliability", "maintainability"],
-  "optionalExperts": ["perf"],
+  "experts": ["correctness", "security", "reliability", "maintainability", "perf"],
+  "optionalExperts": [],
   "project": { "minFilesPerUnit": 30, "units": [], "totals": {} },
   "files": [],
   "testCommand": { "command": "mvn test", "source": "pom.xml" },
@@ -197,7 +197,7 @@ groupUnits:
   │       → verdict.json + report.md
   │       → verdict.mjs 校验 contract
   │
-  └─ 7. 默认四模块完整且最终 contract 通过时更新 latest；中文汇报
+  └─ 7. 默认五专家完整且最终 contract 通过时更新 latest；中文汇报
 ```
 
 规则：
@@ -308,8 +308,8 @@ subagent({
   report.md              # 核心交付物：完整项目报告
   graph.json             # 模块/问题/关系图（插件生成）
   graph.html             # 自带 SVG 的浏览器视图（插件生成）
-.logistics/latest.json   # 仅默认四模块完整时更新
-docs/logistics/latest.md # 仅默认四模块完整时更新
+.logistics/latest.json   # 仅默认五专家完整时更新
+docs/logistics/latest.md # 仅默认五专家完整时更新
 ```
 
 ### 8.1.1 report.md 是核心交付物
@@ -389,7 +389,7 @@ docs/logistics/latest.md # 仅默认四模块完整时更新
 
 - `complete` 只表示“本次 expected 专家都收到合法 handoff，且每个单元都未被任何专家标为 skipped”；
 - 单模块也算 complete，但**不可发布 latest**；
-- `latest` 只由默认四模块完整覆盖、且最终 `verdict.mjs` contract 通过的 `/logi` 更新；`aggregate.mjs` 不写 latest。
+- `latest` 只由默认五专家完整覆盖、且最终 `verdict.mjs` contract 通过的 `/logi` 更新；`aggregate.mjs` 不写 latest。
 
 ### 8.5 运行日志
 
@@ -466,4 +466,4 @@ docs/logistics/latest.md # 仅默认四模块完整时更新
 - 日志：`lib/runlog.js`
 - CLI：`lib/cli/collect.mjs`、`bundle.mjs`、`verdict.mjs`
 - 专家 skill：`skills/logi-correctness|security|reliability|maintainability|perf/SKILL.md`
-- 测试：`test/*.test.js`（98 个）
+- 测试：`test/*.test.js`（99 个）

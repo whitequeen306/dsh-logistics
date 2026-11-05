@@ -13,7 +13,7 @@ function readSkill(name) {
   return parseSkillFile(readFileSync(join(skillsDir, name, 'SKILL.md'), 'utf8'), name)
 }
 
-test('ships exactly the five 0.6.7 skills', () => {
+test('ships exactly the five 0.7.0 skills', () => {
   const dirs = readdirSync(skillsDir, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
@@ -68,7 +68,19 @@ test('audit-expanded section coverage is declared', () => {
     'secrets',
     'crypto',
     'exposure',
+    'business-logic',
     'supply-chain',
+  ])
+  assert.deepEqual(sections.reliability, [
+    'error-handling',
+    'resilience',
+    'observability',
+    'tests',
+  ])
+  assert.deepEqual(sections.maintainability, [
+    'simplify',
+    'coupling',
+    'cleanup',
   ])
   assert.deepEqual(sections.perf, ['hot-path', 'data-access', 'runtime', 'frontend', 'memory-startup'])
 })

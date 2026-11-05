@@ -8,7 +8,7 @@
 >
 > 0.5.1 起，run 目录会带命令后缀：`/logi` 为 `...-master`，单专家为 `...-<expert>`；`/logi` 的 handoff 按专家分目录（`handoff/<expert>/<expert>.json`），单专家保持平铺（`handoff/<expert>.json`）。旧的平铺 run 仍可读取。
 >
-> 从 CodeCortexLoop（MIT，原仓库留存于 [master 分支](https://github.com/whitequeen306/dsh-logistics/tree/master)）迁移而来。0.2.0 删除评分、基线与门禁；0.3.0 起改为「主编模型 + 薄机器层」；0.4.0 把范围从改动集改成整个项目；0.5.0 把 `report.md` 定为唯一核心交付物，并要求每位专家单独写报告；0.5.1 让 run 目录和 `/logi` 的 handoff 按命令/专家分目录；0.6.0 移除 `/logi-fix`，插件不再提供写操作命令；0.6.1 在报告 contract 前增加确定性脱敏和残留凭据扫描；0.6.2 细化命令面板中的审查范围描述；0.6.3 把脱敏覆盖到全部运行产物，增加 finding 的 `direct`/`plan` 分区和结构化测试证据；0.6.4 把总报告改为按严重度排列并标注所属单元，同时生成 `graph.json` + `graph.html` 关系图；0.6.5 要求每条 finding 先写一句面向非开发者的“简述”，再接详细问题、证据、影响和修复；0.6.6 为每个单元标出核心必读文件，并要求专家声明实际读过的文件清单；0.6.7 让脱敏覆盖 `.bak`、临时脚本等全部常规文本产物，`latest` 只由最终 contract 通过的默认 `/logi` 报告发布，并要求模型删除自己创建的临时文件。设计记录见 [MODULE-DECISION.md](./MODULE-DECISION.md)。
+> 从 CodeCortexLoop（MIT，原仓库留存于 [master 分支](https://github.com/whitequeen306/dsh-logistics/tree/master)）迁移而来。0.2.0 删除评分、基线与门禁；0.3.0 起改为「主编模型 + 薄机器层」；0.4.0 把范围从改动集改成整个项目；0.5.0 把 `report.md` 定为唯一核心交付物，并要求每位专家单独写报告；0.5.1 让 run 目录和 `/logi` 的 handoff 按命令/专家分目录；0.6.0 移除 `/logi-fix`，插件不再提供写操作命令；0.6.1 在报告 contract 前增加确定性脱敏和残留凭据扫描；0.6.2 细化命令面板中的审查范围描述；0.6.3 把脱敏覆盖到全部运行产物，增加 finding 的 `direct`/`plan` 分区和结构化测试证据；0.6.4 把总报告改为按严重度排列并标注所属单元，同时生成 `graph.json` + `graph.html` 关系图；0.6.5 要求每条 finding 先写一句面向非开发者的“简述”，再接详细问题、证据、影响和修复；0.6.6 为每个单元标出核心必读文件，并要求专家声明实际读过的文件清单；0.6.7 让脱敏覆盖 `.bak`、临时脚本等全部常规文本产物，`latest` 只由最终 contract 通过的默认 `/logi` 报告发布，并要求模型删除自己创建的临时文件；0.7.0 把性能纳入默认 `/logi`（默认五位专家），补齐可维护性的耦合度、健壮性的 resilience/observability、安全的业务逻辑滥用与供应链证据要求，并移除 correctness/security 中残留的 diff 语义。设计记录见 [MODULE-DECISION.md](./MODULE-DECISION.md)。
 
 ## 核心交付物
 
@@ -33,7 +33,7 @@
 
 - **审查整个项目**：用 `git ls-files` 收集受版本控制（以及未忽略）的源码、配置和构建文件，按模块切成最多 12 个审查单元；不再只看最后一次提交。
 - **一份核心项目报告**：报告先给项目总览和「单元 × 专家」覆盖矩阵，再按 critical → high → medium → low 列出问题，每条标出所属单元（`[uXX]`）；哪个单元没覆盖、哪个专家失败，都会明确写出来。每位专家另有独立 Markdown 报告。
-- **五个专家，按后果分工**：正确性、安全、健壮性（错误处理 + 测试）、可维护性（简化 + 清理）、性能（可选）。默认跑前四个。
+- **五个专家，按后果分工**：正确性、安全、健壮性（错误处理 + 测试）、可维护性（简化 + 耦合 + 清理）、性能（默认纳入）。默认五位一起跑。
 - **证据优先**：问题必须有位置、证据、触发路径和影响；没有证据的严重问题会被降级，不会靠“感觉”报高优。
 - **修复交给主模型**：报告中的每个 finding 都有稳定 ID 和 `kind`。需要修复时，把 `report.md` 或指定 ID 直接发给当前主会话模型；插件本身不执行写操作，也不维护独立 fixer。
 - **关系图**：同一次运行生成 `graph.html`，把模块和问题画成模块分栏的 SVG；卡片显示简述，悬停可看详细问题、证据、影响和修复；`graph.json` 供其他工具消费。
@@ -54,7 +54,7 @@ C:\path\to\dsh-logistics
 **CLI / 非桌面 profile**：
 
 ```bash
-dsh plugin --profile web add dsh-logistics@0.6.6   # 0.6.7 仍在源码中，尚未发布
+dsh plugin --profile web add dsh-logistics@0.7.0   # 0.7.0 源码已完成，发布前请确认 npm 已更新
 dsh plugin --profile web add "C:/path/to/dsh-logistics"   # 本地开发
 dsh --profile web --dump-config | grep -A2 dsh-logistics
 ```
@@ -63,7 +63,7 @@ dsh --profile web --dump-config | grep -A2 dsh-logistics
 
 | 命令 | 作用 |
 | --- | --- |
-| `/logi` | 默认四专家审查**整个项目**：正确性、安全、健壮性、可维护性 |
+| `/logi` | 默认五专家审查**整个项目**：正确性、安全、健壮性、可维护性、性能 |
 | `/logi-correctness` | 只跑正确性专家，仍然覆盖整个项目 |
 | `/logi-security` | 只跑安全专家，仍然覆盖整个项目 |
 | `/logi-reliability` | 只跑健壮性专家，仍然覆盖整个项目 |
@@ -92,7 +92,7 @@ dsh --profile web --dump-config | grep -A2 dsh-logistics
    │
    ├─ 2. 注入派发消息（agent.followup）
    │     主会话模型成为「主编」：读 scope.json，
-   │     派发 4 位专家；每位专家都要覆盖全部审查单元
+   │     派发 5 位专家；每位专家都要覆盖全部审查单元
    │
    ├─ 3. 子代理写 handoff
    │     .logistics/runs/<runId>-master/handoff/<expert>/<expert>.json
@@ -112,7 +112,7 @@ dsh --profile web --dump-config | grep -A2 dsh-logistics
 
 关键约束：
 
-- **一个专家一个 child，不是「单元 × 专家」几十个 child**。每位专家收到完整单元清单，必须逐单元给出覆盖状态；这样大型项目也只需要 4–5 个子代理，但报告能看出哪个单元被真正看过。
+- **一个专家一个 child，不是「单元 × 专家」几十个 child**。每位专家收到完整单元清单，必须逐单元给出覆盖状态；这样大型项目也只需要 5 个子代理，但报告能看出哪个单元被真正看过。
 - 父代理每条消息最多派发 **4 个**子代理；一轮结束后等完成通知，再继续下一波。
 - 缺失或非法 handoff 会重试一次；第二次失败写 `status: "failed"`，不会被当成“没问题”。
 - 子代理 prompt 要求只读：不编辑源码、不提交、不删除、不嵌套子代理；当前没有独立的只读文件系统隔离。
@@ -197,7 +197,7 @@ units:
     graph.json                # 模块/问题/关系图
     graph.html                # 自带 SVG 的浏览器视图
   latest.json
-docs/logistics/latest.md      # 仅默认四模块完整时更新
+docs/logistics/latest.md      # 仅默认五专家完整时更新
 ```
 
 报告包含：
@@ -226,7 +226,7 @@ docs/logistics/latest.md      # 仅默认四模块完整时更新
 
 每个 finding 有稳定 ID，例如 `SEC-4F2A1`，并包含 `brief`（一句话简述）、`title`（详细问题）、证据、影响和修复。ID 由 `专家 | 类别 | 文件 | 归一化标题` 计算，**不含行号**；代码移动不会让同一个问题换 ID。跨专家报告同一根因时，由主编决定保留哪一条，其余写入 `verdict.json` 的 `dropped`。
 
-`verdict.json` 的 schemaVersion 为 `2`，是稳定接口；`docs/logistics/latest.md` 与 `.logistics/latest.json` 只在**默认四模块完整覆盖**时更新，单模块或部分覆盖会保留上一份完整报告。
+`verdict.json` 的 schemaVersion 为 `2`，是稳定接口；`docs/logistics/latest.md` 与 `.logistics/latest.json` 只在**默认五专家完整覆盖**时更新，单模块或部分覆盖会保留上一份完整报告。
 
 ### 为什么没有健康分
 
@@ -285,11 +285,11 @@ docs/logistics/latest.md      # 仅默认四模块完整时更新
 
 配置值非法时会回退到默认值并给出警告，不会让命令直接崩掉。
 
-### 关于“要不要加 perf”
+### 关于 perf
 
-`/logi` 默认只跑四位专家：correctness / security / reliability / maintainability。它**不会自动追加**性能专家；需要性能审查时单独执行 `/logi-perf`，该命令同样覆盖整个项目。
+`/logi` 默认跑五位专家：correctness / security / reliability / maintainability / perf，性能维度不再需要手动追加。`/logi-perf` 仍可用于只重跑性能这一维度，范围同样覆盖整个项目。
 
-`/logi` 的报告必须写“性能维度未运行，需要时执行 `/logi-perf`”，不能把未检查当成没问题。
+报告必须给出本单元的性能判断；没有证据时写“未验证/未覆盖”，不能把未检查当成没问题。性能 finding 永远是 `plan`，不会自动改。
 
 ## 适用边界
 
@@ -303,7 +303,7 @@ docs/logistics/latest.md      # 仅默认四模块完整时更新
 ## 开发
 
 ```bash
-npm test          # node --test，98 个测试（含全项目 scope、单元覆盖、核心文件/最低读取、报告契约、测试证据、脱敏、latest、端到端 contract 与运行日志）
+npm test          # node --test，99 个测试（含全项目 scope、单元覆盖、核心文件/最低读取、报告契约、测试证据、脱敏、latest、端到端 contract 与运行日志）
 npm run check     # 语法检查 + 全部测试
 ```
 

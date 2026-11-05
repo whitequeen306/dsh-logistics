@@ -82,6 +82,11 @@ function expertReportText(expert, scope, findings) {
       ? '- 已查区域未发现问题。'
       : findings.map((finding) => `- 简述：${finding.brief || finding.title}\n  详细问题：${finding.title}：\`${finding.file}:${finding.line}\`；${finding.evidence}`).join('\n'),
     '',
+    ...(expert === 'maintainability' ? [
+      '## 耦合度',
+      '- 依赖方向：backend -> shared；无循环依赖；无跨层内部访问；共享持久化已隔离。',
+      '',
+    ] : []),
     '## 未验证与抽样',
     '- 本测试报告覆盖全部单元；生产运行必须如实标注 sampled/skipped。',
     '',
