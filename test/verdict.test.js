@@ -493,7 +493,7 @@ test('legacy 0.4 project verdicts stay readable without expert reports', () => {
   }
 })
 
-test('0.7.0 maintainability expert report requires a coupling section', () => {
+test('0.8.0 maintainability expert report requires a coupling section', () => {
   const root = initRepo()
   try {
     const created = makeProjectScope(root, ['maintainability'])

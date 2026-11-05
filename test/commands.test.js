@@ -42,7 +42,7 @@ function latestRunDir(root) {
   return entries.at(-1)
 }
 
-test('registers exactly six commands', () => {
+test('registers exactly eight commands', () => {
   const commands = createCommands({ pluginRoot })
   assert.deepEqual(
     commands.map((command) => command.name),
@@ -53,12 +53,18 @@ test('registers exactly six commands', () => {
       'logi-reliability',
       'logi-maintainability',
       'logi-perf',
+      'logi-status',
+      'logi-cancel',
     ],
   )
   for (const command of commands) {
     assert.equal(typeof command.description, 'string')
     assert.ok(command.description.length >= 30, `${command.name} description is too short`)
-    assert.match(command.description, command.name === 'logi' ? /全项目/u : /只开启/u)
+    if (command.name === 'logi-status' || command.name === 'logi-cancel') {
+      assert.match(command.description, /进度|取消/u)
+    } else {
+      assert.match(command.description, command.name === 'logi' ? /全项目/u : /只开启/u)
+    }
     assert.equal(command.input.attachments, false)
   }
   assert.equal(new Set(commands.map((command) => command.description)).size, commands.length)
@@ -94,7 +100,7 @@ test('/logi creates a five-expert pipeline scope and queues one dispatch', async
 
     const runDir = latestRunDir(root)
     const events = readRunLog(runDir).map((entry) => entry.event)
-    assert.deepEqual(events, ['scope.created', 'dispatch.queued', 'dispatch.accepted'])
+    assert.deepEqual(events, ['scope.created', 'run.started', 'dispatch.queued', 'dispatch.accepted'])
     assert.ok(existsSync(join(runDir, 'dispatch.md')))
     for (const expert of scope.experts) {
       assert.ok(existsSync(join(runDir, 'prompts', `${expert}.md`)), expert)
@@ -149,6 +155,35 @@ test('aborted and no-file runs return errors without queues', async () => {
     } finally {
       cleanup(empty)
     }
+  } finally {
+    cleanup(root)
+  }
+})
+
+test('/logi-status and /logi-cancel operate on the latest run', async () => {
+  const root = initRepo()
+  try {
+    const { invocation: inv } = invocation(root)
+    const commands = createCommands({ pluginRoot })
+    const logi = commands.find((item) => item.name === 'logi')
+    const status = commands.find((item) => item.name === 'logi-status')
+    const cancel = commands.find((item) => item.name === 'logi-cancel')
+
+    const started = await logi.handler(inv)
+    assert.equal(started.kind, 'success')
+
+    const running = await status.handler(inv)
+    assert.equal(running.kind, 'success')
+    assert.match(running.text, /专家 0\/5/u)
+    assert.match(running.text, /预计剩余/u)
+
+    const cancelled = await cancel.handler(inv)
+    assert.equal(cancelled.kind, 'success')
+    assert.match(cancelled.text, /已请求取消/u)
+
+    const after = await status.handler(inv)
+    assert.equal(after.kind, 'success')
+    assert.match(after.text, /cancelling/u)
   } finally {
     cleanup(root)
   }

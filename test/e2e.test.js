@@ -63,7 +63,7 @@ function securityFinding() {
   })
 }
 
-test('0.7.0 end-to-end: project dispatch -> handoff -> bundle -> verdict', async () => {
+test('0.8.0 end-to-end: project dispatch -> handoff -> bundle -> verdict', async () => {
   const root = initRepo()
   try {
     write(root, 'src/auth.js', "export function isAdmin(user) {\n  if (user.role = 'admin') {\n    return true\n  }\n  return false\n}\n")
@@ -106,7 +106,7 @@ test('0.7.0 end-to-end: project dispatch -> handoff -> bundle -> verdict', async
     assert.ok(existsSync(join(runDir, 'run.jsonl')))
     assert.deepEqual(
       readRunLog(runDir).map((entry) => entry.event),
-      ['scope.created', 'dispatch.queued', 'dispatch.accepted', 'collect.completed', 'bundle.completed'],
+      ['scope.created', 'run.started', 'dispatch.queued', 'dispatch.accepted', 'collect.completed', 'bundle.completed'],
     )
 
     const verdict = {

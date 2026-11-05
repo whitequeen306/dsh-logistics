@@ -2,6 +2,25 @@
 
 All notable changes to this project. Format follows [Keep a Changelog](https://keepachangelog.com/); versions use [SemVer](https://semver.org/).
 
+## [0.8.0] - 2026-11-05
+
+### Added
+
+- `/logi` 启动时写 `progress.json`，包含阶段、波次、每位专家的状态/child ID/findings、已用时间和 ETA 区间；`children.json` 记录专家到 subagent 的映射。
+- 新增 `/logi-status`：查看最近一次运行的专家完成数、波次、阶段、findings 和预计剩余时间。
+- 新增 `/logi-cancel`：写入取消请求，阻止下一波并禁止发布 `latest`；不删除已有产物，也不假装能立即终止正在运行的子代理。
+- 派发消息增加按波次的进度检查点，要求模型每波结束报告一句进度；ETA 启动时按规模估算，第一波后按实际耗时修正。
+- 测试增至 104 个，新增进度生命周期、取消阻止 latest、status/cancel 命令等用例。
+
+### Changed
+
+- 插件命令数从 6 个增至 8 个；默认 `/logi` 仍是五位专家。
+- `verdict.mjs` 在成功校验后标记 `run.completed`；取消中的 run 不发布 latest。
+
+### Notes
+
+- 本次只做源码修改，尚未打包/发布；npm 最新仍是 0.7.0。
+
 ## [0.7.0] - 2026-11-05
 
 ### Changed

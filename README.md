@@ -8,7 +8,7 @@
 >
 > 0.5.1 起，run 目录会带命令后缀：`/logi` 为 `...-master`，单专家为 `...-<expert>`；`/logi` 的 handoff 按专家分目录（`handoff/<expert>/<expert>.json`），单专家保持平铺（`handoff/<expert>.json`）。旧的平铺 run 仍可读取。
 >
-> 从 CodeCortexLoop（MIT，原仓库留存于 [master 分支](https://github.com/whitequeen306/dsh-logistics/tree/master)）迁移而来。0.2.0 删除评分、基线与门禁；0.3.0 起改为「主编模型 + 薄机器层」；0.4.0 把范围从改动集改成整个项目；0.5.0 把 `report.md` 定为唯一核心交付物，并要求每位专家单独写报告；0.5.1 让 run 目录和 `/logi` 的 handoff 按命令/专家分目录；0.6.0 移除 `/logi-fix`，插件不再提供写操作命令；0.6.1 在报告 contract 前增加确定性脱敏和残留凭据扫描；0.6.2 细化命令面板中的审查范围描述；0.6.3 把脱敏覆盖到全部运行产物，增加 finding 的 `direct`/`plan` 分区和结构化测试证据；0.6.4 把总报告改为按严重度排列并标注所属单元，同时生成 `graph.json` + `graph.html` 关系图；0.6.5 要求每条 finding 先写一句面向非开发者的“简述”，再接详细问题、证据、影响和修复；0.6.6 为每个单元标出核心必读文件，并要求专家声明实际读过的文件清单；0.6.7 让脱敏覆盖 `.bak`、临时脚本等全部常规文本产物，`latest` 只由最终 contract 通过的默认 `/logi` 报告发布，并要求模型删除自己创建的临时文件；0.7.0 把性能纳入默认 `/logi`（默认五位专家），补齐可维护性的耦合度、健壮性的 resilience/observability、安全的业务逻辑滥用与供应链证据要求，并移除 correctness/security 中残留的 diff 语义。设计记录见 [MODULE-DECISION.md](./MODULE-DECISION.md)。
+> 从 CodeCortexLoop（MIT，原仓库留存于 [master 分支](https://github.com/whitequeen306/dsh-logistics/tree/master)）迁移而来。0.2.0 删除评分、基线与门禁；0.3.0 起改为「主编模型 + 薄机器层」；0.4.0 把范围从改动集改成整个项目；0.5.0 把 `report.md` 定为唯一核心交付物，并要求每位专家单独写报告；0.5.1 让 run 目录和 `/logi` 的 handoff 按命令/专家分目录；0.6.0 移除 `/logi-fix`，插件不再提供写操作命令；0.6.1 在报告 contract 前增加确定性脱敏和残留凭据扫描；0.6.2 细化命令面板中的审查范围描述；0.6.3 把脱敏覆盖到全部运行产物，增加 finding 的 `direct`/`plan` 分区和结构化测试证据；0.6.4 把总报告改为按严重度排列并标注所属单元，同时生成 `graph.json` + `graph.html` 关系图；0.6.5 要求每条 finding 先写一句面向非开发者的“简述”，再接详细问题、证据、影响和修复；0.6.6 为每个单元标出核心必读文件，并要求专家声明实际读过的文件清单；0.6.7 让脱敏覆盖 `.bak`、临时脚本等全部常规文本产物，`latest` 只由最终 contract 通过的默认 `/logi` 报告发布，并要求模型删除自己创建的临时文件；0.7.0 把性能纳入默认 `/logi`（默认五位专家），补齐可维护性的耦合度、健壮性的 resilience/observability、安全的业务逻辑滥用与供应链证据要求，并移除 correctness/security 中残留的 diff 语义；0.8.0 增加启动 ETA、`/logi-status`、`/logi-cancel` 和按波次更新的 `progress.json`。设计记录见 [MODULE-DECISION.md](./MODULE-DECISION.md)。
 
 ## 核心交付物
 
@@ -54,7 +54,7 @@ C:\path\to\dsh-logistics
 **CLI / 非桌面 profile**：
 
 ```bash
-dsh plugin --profile web add dsh-logistics@0.7.0   # 0.7.0 源码已完成，发布前请确认 npm 已更新
+dsh plugin --profile web add dsh-logistics@0.7.0   # 0.8.0 源码已完成，发布前请确认 npm 已更新
 dsh plugin --profile web add "C:/path/to/dsh-logistics"   # 本地开发
 dsh --profile web --dump-config | grep -A2 dsh-logistics
 ```
@@ -69,6 +69,8 @@ dsh --profile web --dump-config | grep -A2 dsh-logistics
 | `/logi-reliability` | 只跑健壮性专家，仍然覆盖整个项目 |
 | `/logi-maintainability` | 只跑可维护性专家，仍然覆盖整个项目 |
 | `/logi-perf` | 只跑性能专家，仍然覆盖整个项目 |
+| `/logi-status` | 查看最近一次审查的专家完成数、波次、阶段、findings 和预计剩余时间 |
+| `/logi-cancel` | 请求取消当前审查：不再派发下一波，保留已有产物，不发布 latest |
 
 所有审查命令都支持在命令后补充关注点：
 
@@ -79,6 +81,18 @@ dsh --profile web --dump-config | grep -A2 dsh-logistics
 需要修复时，请把报告或具体 finding ID 发给主模型；主模型会按报告中的位置、证据和修复步骤处理。插件不提供写操作命令；审查子代理仍受 prompt 约束。
 
 每次审查（包括单专家命令）结束时，模型必须单独问一句：**“需要我帮你开始直接修复吗？还是你拿上报告去新开一个会话施行修复？”**
+
+## 进度与取消
+
+长任务不能再是 20–40 分钟黑盒。每次 `/logi*` 启动时：
+
+- 回复里给出按文件数、单元数和专家数估算的 **ETA 区间**，并明确是估算。
+- 写 `.logistics/runs/<runId>/progress.json`：阶段、波次、每位专家的状态/child ID/findings、已用时间和预计剩余。
+- 每波结束由模型发一句进度；不要求用户反复问。
+- `/logi-status` 读取最近一次运行的进度，`/logi-cancel` 写入取消请求。
+- 取消只阻止下一波，不假装能立即杀死正在运行的子代理；已有产物保留，本次不发布 `latest`。
+
+ETA 是范围，不是承诺：启动时按规模静态估算，完成第一波后按实际波次耗时修正。真正的秒级 subagent 生命周期需要 DSH 暴露事件接口，当前用命令和检查点实现。
 
 ## 工作方式
 
@@ -158,12 +172,16 @@ dsh --profile web --dump-config | grep -A2 dsh-logistics
 
 ```text
 .logistics/runs/<runId>-master/     # 单专家命令为 <runId>-<expert>
-  run.jsonl              # 每行一个事件：scope.created、dispatch.queued、
-                         # dispatch.accepted/failed、collect.completed、
-                         # bundle.completed、verdict.validated
+  run.jsonl              # 每行一个事件：scope.created、run.started、
+                         # dispatch.queued/accepted/failed、progress.phase、
+                         # wave.dispatched、expert.started/finished、
+                         # collect.completed、bundle.completed、
+                         # verdict.validated、run.cancel.requested/cancelled
   dispatch.md            # 实际注入给主会话模型的派发消息
   prompts/<expert>.md    # 每位专家实际收到的 child prompt
   scope.json             # 本次项目清单与审查单元
+  progress.json          # 阶段、波次、专家状态、ETA、取消请求
+  children.json          # 专家 -> subagent child ID
   handoff/<expert>/<expert>.json  # /logi：每位专家一个子目录
   handoff/<expert>/<expert>.md    # /logi：每位专家的独立 Markdown 报告（模型写）
                          # 单专家为 handoff/<expert>.json 与 handoff/<expert>.md
@@ -303,7 +321,7 @@ docs/logistics/latest.md      # 仅默认五专家完整时更新
 ## 开发
 
 ```bash
-npm test          # node --test，99 个测试（含全项目 scope、单元覆盖、核心文件/最低读取、报告契约、测试证据、脱敏、latest、端到端 contract 与运行日志）
+npm test          # node --test，104 个测试（含全项目 scope、单元覆盖、核心文件/最低读取、报告契约、测试证据、脱敏、latest、进度/取消、端到端 contract 与运行日志）
 npm run check     # 语法检查 + 全部测试
 ```
 
@@ -311,7 +329,7 @@ npm run check     # 语法检查 + 全部测试
 
 ```text
 lib/
-  index.js        # DSH 入口：注册 5 个 skill、6 个命令
+  index.js        # DSH 入口：注册 5 个 skill、8 个命令
   commands.js     # 命令 handler：全项目 scope、派发、运行回复
   project.js      # 全项目文件分类、模块划分、审查单元
   scope.js        # git 清单、单元落盘、多模块测试命令、scope.json
@@ -327,8 +345,9 @@ lib/
   config.js       # .logistics/config.json
   constants.js    # 5 个模块、severity、默认配置
   runlog.js       # run.jsonl、prompt/dispatch 日志
+  progress.js     # progress.json、children.json、ETA、波次与取消
   util.js         # git/glob/id/文件工具
-  cli/            # collect / bundle / verdict / status / aggregate
+  cli/            # collect / bundle / verdict / progress / status / aggregate
 skills/
   logi-correctness/
   logi-security/

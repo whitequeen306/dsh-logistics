@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { apply, inject, name } from '../lib/index.js'
 
-test('plugin entry registers all 0.7.0 skills and commands against a DSH-like context', () => {
+test('plugin entry registers all 0.8.0 skills and commands against a DSH-like context', () => {
   const skills = []
   const commands = []
   const logs = []
@@ -45,8 +45,10 @@ test('plugin entry registers all 0.7.0 skills and commands against a DSH-like co
       'logi-reliability',
       'logi-maintainability',
       'logi-perf',
+      'logi-status',
+      'logi-cancel',
     ],
   )
-  assert.equal(new Set(commands.map((command) => command.name)).size, 6)
-  assert.ok(logs.some((line) => line.includes('5 个 skill') && line.includes('6 个命令')))
+  assert.equal(new Set(commands.map((command) => command.name)).size, 8)
+  assert.ok(logs.some((line) => line.includes('5 个 skill') && line.includes('8 个命令')))
 })

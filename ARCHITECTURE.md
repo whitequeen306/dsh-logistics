@@ -1,6 +1,6 @@
-# dsh-logistics 架构与执行模型（0.7.0）
+# dsh-logistics 架构与执行模型（0.8.0）
 
-> 本文描述 **0.7.0 已实现**的结构，不是路线图。0.4.0 把审查范围从「工作区 diff / 最近提交」改成**整个项目**：`git ls-files` 全量清单 → 文件分类 → 模块切分 → 审查单元；每个专家覆盖全部单元，并用 handoff 的 `units` 映射声明 reviewed / sampled / skipped。0.5.0 把 `report.md` 定为核心交付物，要求每位专家另写报告，并由 `lib/report-check.js` 做 contract 校验。0.5.1 给 run 目录加命令后缀（`/logi` 为 `-master`，单专家为 `-<expert>`），并让 `/logi` 的 handoff 按专家分目录，旧平铺 run 仍可读。0.6.0 移除 `/logi-fix` 与独立 fixer，插件不提供写操作命令；审查子代理仍受 prompt 约束，需要修复时由用户把报告或 finding 交给主模型。0.6.1 在报告 contract 校验前加入确定性脱敏与残留凭据扫描；0.6.2 细化 DSH 命令面板中的审查范围描述；0.6.3 把脱敏扩展到 run 目录下全部文本产物，增加结构化测试证据与 `direct`/`plan` 报告分区；0.6.4 把总报告改为按严重度排序并标注所属单元，并生成 `graph.json` + `graph.html` 关系图；0.6.5 要求 finding 先写面向非开发者的 `brief`，再写详细问题、证据、影响和修复；0.6.6 为每个单元增加核心必读清单和最低实际读取数，handoff 必须列出实际读过的文件；0.6.7 把脱敏扩展到 `.bak`、临时脚本等常规文本产物，`latest` 只由最终 contract 通过的默认 `/logi` 发布，并要求模型删除自己创建的临时文件；0.7.0 将性能纳入默认 `/logi`，补齐 maintainability 的耦合度、reliability 的 resilience/observability、security 的业务逻辑滥用，并清理 correctness/security 的 diff 语义。0.3.x 的主编模型、contract 校验和运行日志继续保留。
+> 本文描述 **0.8.0 已实现**的结构，不是路线图。0.4.0 把审查范围从「工作区 diff / 最近提交」改成**整个项目**：`git ls-files` 全量清单 → 文件分类 → 模块切分 → 审查单元；每个专家覆盖全部单元，并用 handoff 的 `units` 映射声明 reviewed / sampled / skipped。0.5.0 把 `report.md` 定为核心交付物，要求每位专家另写报告，并由 `lib/report-check.js` 做 contract 校验。0.5.1 给 run 目录加命令后缀（`/logi` 为 `-master`，单专家为 `-<expert>`），并让 `/logi` 的 handoff 按专家分目录，旧平铺 run 仍可读。0.6.0 移除 `/logi-fix` 与独立 fixer，插件不提供写操作命令；审查子代理仍受 prompt 约束，需要修复时由用户把报告或 finding 交给主模型。0.6.1 在报告 contract 校验前加入确定性脱敏与残留凭据扫描；0.6.2 细化 DSH 命令面板中的审查范围描述；0.6.3 把脱敏扩展到 run 目录下全部文本产物，增加结构化测试证据与 `direct`/`plan` 报告分区；0.6.4 把总报告改为按严重度排序并标注所属单元，并生成 `graph.json` + `graph.html` 关系图；0.6.5 要求 finding 先写面向非开发者的 `brief`，再写详细问题、证据、影响和修复；0.6.6 为每个单元增加核心必读清单和最低实际读取数，handoff 必须列出实际读过的文件；0.6.7 把脱敏扩展到 `.bak`、临时脚本等常规文本产物，`latest` 只由最终 contract 通过的默认 `/logi` 发布，并要求模型删除自己创建的临时文件；0.7.0 将性能纳入默认 `/logi`，补齐 maintainability 的耦合度、reliability 的 resilience/observability、security 的业务逻辑滥用，并清理 correctness/security 的 diff 语义；0.8.0 增加启动 ETA、`progress.json`/`children.json`、`/logi-status`、`/logi-cancel` 和按波次更新的进度检查点。0.3.x 的主编模型、contract 校验和运行日志继续保留。
 
 ## 1. 一句话模型
 
@@ -23,7 +23,7 @@
 
 | 层 | 文件 | 职责 | 调模型 |
 | --- | --- | --- | --- |
-| 注册层 | `lib/index.js` | 加载 5 个 skill，注册 6 个命令 | 否 |
+| 注册层 | `lib/index.js` | 加载 5 个 skill，注册 8 个命令 | 否 |
 | 命令层 | `lib/commands.js` | 取 cwd、建 run、注入全项目派发、生成运行回复 | 否（只入队） |
 | 项目层 | `lib/project.js` | 文件分类、模块归属、审查单元、上限与合并 | 否 |
 | 范围层 | `lib/scope.js` | git 清单、项目 scope 落盘、测试命令、模型路由 | 否 |
@@ -35,7 +35,7 @@
 | 图形层 | `lib/graph.js` | 由 verdict 生成 graph.json 与自包含 graph.html（模块/问题/关系） | 否 |
 | 裁决层 | `lib/verdict.js`、`lib/cli/verdict.mjs` | verdict contract 校验、稳定 ID、覆盖检查、报告校验 | 否 |
 | 配置层 | `lib/config.js`、`lib/constants.js` | 忽略、上限、测试命令、模块显示名、专家模型路由 | 否 |
-| 日志层 | `lib/runlog.js` | `run.jsonl`、`dispatch.md`、`prompts/` | 否 |
+| 日志层 | `lib/runlog.js`、`lib/progress.js` | `run.jsonl`、`progress.json`、`children.json`、`dispatch.md`、`prompts/` | 否 |
 
 依赖方向：
 
@@ -154,7 +154,7 @@ groupUnits:
 ```json
 {
   "schemaVersion": 2,
-  "version": "0.7.0",
+  "version": "0.8.0",
   "runId": "20261104-...",
   "mode": "project",
   "source": "project",
@@ -207,6 +207,19 @@ groupUnits:
 - 没有 `subagent` 工具时硬停，**没有父代理自审降级**。
 - `collect` 的 `complete` 只表示证据收齐，不表示审查通过；`verdict` 只校验 contract。
 - 单模块或非默认组合只写本次 run，不覆盖 `docs/logistics/latest.md` 与 `.logistics/latest.json`；默认 `/logi` 也只由 `verdict.mjs` 在最终报告和 verdict 都通过 contract 后发布 latest。
+
+## 6.1 进度与取消
+
+每次 `/logi*` 启动时由 `lib/commands.js` 调用 `startProgress(scope)`，写 `progress.json` 并记录 `run.started`。`lib/progress.js` 维护：
+
+- `status`：`running` / `cancelling` / `cancelled` / `completed` / `failed`；
+- `phase`：`dispatch` / `experts` / `collect` / `bundle` / `verdict` / `done`；
+- `experts`：每位专家的状态、child ID、startedAt、findings；
+- `waves`：总波数、已派发、已完成；
+- `eta`：按专家数、单元数、文件数静态估算，第一波后按实际耗时修正；
+- `cancelRequested`：`/logi-cancel` 写入后阻止下一波，且 `latest` 不发布。
+
+主编模型按 `dispatch.md` 的“进度与取消”一节，在波次和专家完成时调用 `lib/cli/progress.mjs`；`/logi-status` 读取最近一次的运行进度。`/logi-cancel` 只阻止下一波，不假装能立即杀死正在运行的子代理。
 
 ## 7. 子代理协议
 
@@ -297,6 +310,8 @@ subagent({
 ```text
 .logistics/runs/<runId>-master/   # 单专家为 <runId>-<expert>
   scope.json
+  progress.json
+  children.json
   dispatch.md
   prompts/<expert>.md
   run.jsonl
@@ -389,7 +404,7 @@ docs/logistics/latest.md # 仅默认五专家完整时更新
 
 - `complete` 只表示“本次 expected 专家都收到合法 handoff，且每个单元都未被任何专家标为 skipped”；
 - 单模块也算 complete，但**不可发布 latest**；
-- `latest` 只由默认五专家完整覆盖、且最终 `verdict.mjs` contract 通过的 `/logi` 更新；`aggregate.mjs` 不写 latest。
+- `latest` 只由默认五专家完整覆盖、且最终 `verdict.mjs` contract 通过的 `/logi` 更新；`aggregate.mjs` 不写 latest。进度/取消见下一节。
 
 ### 8.5 运行日志
 
@@ -458,6 +473,7 @@ docs/logistics/latest.md # 仅默认五专家完整时更新
 - handoff/单元覆盖：`lib/handoffs.js`
 - 报告脱敏：`lib/redact.js`
 - latest 发布：`lib/latest.js`
+- 进度/ETA/取消：`lib/progress.js`、`lib/cli/progress.mjs`
 - 报告契约：`lib/report-check.js`
 - 测试命令展示：`lib/test-command.js`
 - 裁决：`lib/verdict.js`
@@ -466,4 +482,4 @@ docs/logistics/latest.md # 仅默认五专家完整时更新
 - 日志：`lib/runlog.js`
 - CLI：`lib/cli/collect.mjs`、`bundle.mjs`、`verdict.mjs`
 - 专家 skill：`skills/logi-correctness|security|reliability|maintainability|perf/SKILL.md`
-- 测试：`test/*.test.js`（99 个）
+- 测试：`test/*.test.js`（104 个）
