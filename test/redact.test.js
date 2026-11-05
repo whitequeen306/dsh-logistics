@@ -120,6 +120,30 @@ test('redactArtifacts sanitizes JSON, logs, and nested expert artifacts too', ()
   }
 })
 
+test('redacts backups, scripts, extensionless text, and refuses binary artifacts', () => {
+  const root = initRepo()
+  try {
+    const { scope } = makeProjectScope(root, ['security'])
+    const leak = 'PASSWORD="hunter2"'
+    write(scope.output.runDir, 'handoff/security/security.json.bak', leak)
+    write(scope.output.runDir, '_repro_breaker.py', leak)
+    write(scope.output.runDir, '_repro_breaker.sh', leak)
+    writeFileSync(join(scope.output.runDir, 'notes'), leak)
+    writeFileSync(join(scope.output.runDir, 'image.bin'), Buffer.from([0, 1, 2, 0, 3]))
+
+    assert.ok(scanArtifacts(scope).total >= 4)
+    redactArtifacts(scope)
+    assert.equal(scanArtifacts(scope).total, 0)
+    assert.equal(scanSecrets(readFileSync(join(scope.output.runDir, 'handoff/security/security.json.bak'), 'utf8')).total, 0)
+    assert.equal(scanSecrets(readFileSync(join(scope.output.runDir, '_repro_breaker.py'), 'utf8')).total, 0)
+    assert.equal(scanSecrets(readFileSync(join(scope.output.runDir, '_repro_breaker.sh'), 'utf8')).total, 0)
+    assert.equal(scanSecrets(readFileSync(join(scope.output.runDir, 'notes'), 'utf8')).total, 0)
+    assert.deepEqual(readFileSync(join(scope.output.runDir, 'image.bin')), Buffer.from([0, 1, 2, 0, 3]))
+  } finally {
+    cleanup(root)
+  }
+})
+
 test('0.6.4 report requires direct/plan markers and test evidence', () => {
   const root = initRepo()
   try {

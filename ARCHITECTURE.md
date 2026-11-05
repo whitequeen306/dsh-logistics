@@ -1,6 +1,6 @@
-# dsh-logistics 架构与执行模型（0.6.6）
+# dsh-logistics 架构与执行模型（0.6.7）
 
-> 本文描述 **0.6.6 已实现**的结构，不是路线图。0.4.0 把审查范围从「工作区 diff / 最近提交」改成**整个项目**：`git ls-files` 全量清单 → 文件分类 → 模块切分 → 审查单元；每个专家覆盖全部单元，并用 handoff 的 `units` 映射声明 reviewed / sampled / skipped。0.5.0 把 `report.md` 定为核心交付物，要求每位专家另写报告，并由 `lib/report-check.js` 做 contract 校验。0.5.1 给 run 目录加命令后缀（`/logi` 为 `-master`，单专家为 `-<expert>`），并让 `/logi` 的 handoff 按专家分目录，旧平铺 run 仍可读。0.6.0 移除 `/logi-fix` 与独立 fixer，插件不提供写操作命令；审查子代理仍受 prompt 约束，需要修复时由用户把报告或 finding 交给主模型。0.6.1 在报告 contract 校验前加入确定性脱敏与残留凭据扫描；0.6.2 细化 DSH 命令面板中的审查范围描述；0.6.3 把脱敏扩展到 run 目录下全部文本产物，增加结构化测试证据与 `direct`/`plan` 报告分区；0.6.4 把总报告改为按严重度排序并标注所属单元，并生成 `graph.json` + `graph.html` 关系图；0.6.5 要求 finding 先写面向非开发者的 `brief`，再写详细问题、证据、影响和修复；0.6.6 为每个单元增加核心必读清单和最低实际读取数，handoff 必须列出实际读过的文件。0.3.x 的主编模型、contract 校验和运行日志继续保留。
+> 本文描述 **0.6.7 已实现**的结构，不是路线图。0.4.0 把审查范围从「工作区 diff / 最近提交」改成**整个项目**：`git ls-files` 全量清单 → 文件分类 → 模块切分 → 审查单元；每个专家覆盖全部单元，并用 handoff 的 `units` 映射声明 reviewed / sampled / skipped。0.5.0 把 `report.md` 定为核心交付物，要求每位专家另写报告，并由 `lib/report-check.js` 做 contract 校验。0.5.1 给 run 目录加命令后缀（`/logi` 为 `-master`，单专家为 `-<expert>`），并让 `/logi` 的 handoff 按专家分目录，旧平铺 run 仍可读。0.6.0 移除 `/logi-fix` 与独立 fixer，插件不提供写操作命令；审查子代理仍受 prompt 约束，需要修复时由用户把报告或 finding 交给主模型。0.6.1 在报告 contract 校验前加入确定性脱敏与残留凭据扫描；0.6.2 细化 DSH 命令面板中的审查范围描述；0.6.3 把脱敏扩展到 run 目录下全部文本产物，增加结构化测试证据与 `direct`/`plan` 报告分区；0.6.4 把总报告改为按严重度排序并标注所属单元，并生成 `graph.json` + `graph.html` 关系图；0.6.5 要求 finding 先写面向非开发者的 `brief`，再写详细问题、证据、影响和修复；0.6.6 为每个单元增加核心必读清单和最低实际读取数，handoff 必须列出实际读过的文件；0.6.7 把脱敏扩展到 `.bak`、临时脚本等常规文本产物，`latest` 只由最终 contract 通过的默认 `/logi` 发布，并要求模型删除自己创建的临时文件。0.3.x 的主编模型、contract 校验和运行日志继续保留。
 
 ## 1. 一句话模型
 
@@ -12,9 +12,9 @@
   → collect（盘点专家 + 单元覆盖，不是质量门禁）
   → bundle（候选材料 + 稳定 ID + 单元 × 专家矩阵）
   → 主会话模型合并/去重/定级/取舍，写 verdict.json + report.md
-  → verdict.mjs 先脱敏本次 run 的全部文本产物，再校验 contract（含 report.md、专家报告、测试证据、direct/plan 分区与严重度排序；不判断内容好坏）
+  → verdict.mjs 先脱敏本次 run 的全部常规文本产物，再校验 contract（含 report.md、专家报告、测试证据、direct/plan 分区与严重度排序；不判断内容好坏）
   → 生成 graph.json + graph.html（模块/问题/关系图）
-  → 默认四模块完整时才更新 latest
+  → 默认四模块完整且最终 contract 通过时才更新 latest
 ```
 
 关键点：**机器负责事实与安全边界，模型负责判断与成文。** 一个专家一个 child，不是「单元 × 专家」几十个 child；覆盖是否真实由 handoff 的单元映射和机器校验共同约束。
@@ -154,7 +154,7 @@ groupUnits:
 ```json
 {
   "schemaVersion": 2,
-  "version": "0.6.6",
+  "version": "0.6.7",
   "runId": "20261104-...",
   "mode": "project",
   "source": "project",
@@ -197,7 +197,7 @@ groupUnits:
   │       → verdict.json + report.md
   │       → verdict.mjs 校验 contract
   │
-  └─ 7. 默认四模块完整时更新 latest；中文汇报
+  └─ 7. 默认四模块完整且最终 contract 通过时更新 latest；中文汇报
 ```
 
 规则：
@@ -206,7 +206,7 @@ groupUnits:
 - `failed` 是终态，不重试。
 - 没有 `subagent` 工具时硬停，**没有父代理自审降级**。
 - `collect` 的 `complete` 只表示证据收齐，不表示审查通过；`verdict` 只校验 contract。
-- 单模块或非默认组合只写本次 run，不覆盖 `docs/logistics/latest.md` 与 `.logistics/latest.json`。
+- 单模块或非默认组合只写本次 run，不覆盖 `docs/logistics/latest.md` 与 `.logistics/latest.json`；默认 `/logi` 也只由 `verdict.mjs` 在最终报告和 verdict 都通过 contract 后发布 latest。
 
 ## 7. 子代理协议
 
@@ -314,7 +314,7 @@ docs/logistics/latest.md # 仅默认四模块完整时更新
 
 ### 8.1.1 report.md 是核心交付物
 
-`lib/cli/verdict.mjs` 在调用 `validateVerdict` **之前**先调用 `redactArtifacts(scope)`：用 `lib/redact.js` 的确定性规则扫描整个 run 目录下的文本产物（`report.md`、专家 `.json`/`.md`、`packet.md`、`handoffs.json`、`verdict.json`、`run.jsonl`、`scope.json`）以及 `docs/logistics/latest.md`，并把 `secrets.redacted` 写入 `run.jsonl`。然后再由 `lib/report-check.js` 的 `validateReport({scope, verdict})` 做 contract 检查和残留扫描；只对 `mode === 'project'` 运行，检查：
+`lib/cli/verdict.mjs` 在调用 `validateVerdict` **之前**先调用 `redactArtifacts(scope)`：用 `lib/redact.js` 的确定性规则扫描整个 run 目录下的常规文本产物（`report.md`、专家 `.json`/`.md`、`packet.md`、`handoffs.json`、`verdict.json`、`report.json`、`run.jsonl`、`scope.json`、`graph.json`、`.bak`/`.bak2`、临时 `.py`/`.sh` 等；二进制跳过）以及 `docs/logistics/latest.md`，并把 `secrets.redacted` 写入 `run.jsonl`。然后再由 `lib/report-check.js` 的 `validateReport({scope, verdict})` 做 contract 检查和残留扫描；只对 `mode === 'project'` 运行，检查：
 
 - `scope.output.reportMarkdown` 存在，trim 后至少 1200 字符；
 - 含“一句话结论 / 覆盖 / 发现或问题 / 修复 / 测试证据 / 缺口或未验证”章节；
@@ -330,6 +330,8 @@ docs/logistics/latest.md # 仅默认四模块完整时更新
 - 总报告和专家报告中没有残留的疑似凭据（脱敏后仍命中则直接判不合格）。
 
 任一项失败，`verdict.mjs` 返回非零，run 不算完成，也不会更新 latest。`report.md` 不是 `verdict.json` 的附属摘要，而是最终给用户阅读和带走的产物。
+
+子代理必须删除自己创建的 `*.bak`、`*.bak2`、`_repro_*`、临时脚本和调试输出；`collect.mjs` 会检测 handoff 目录中的多余文件并给出警告。脱敏会覆盖这些常规文本产物，但临时文件本身仍应由模型清理。
 
 ### 8.1.2 关系图
 
@@ -387,7 +389,7 @@ docs/logistics/latest.md # 仅默认四模块完整时更新
 
 - `complete` 只表示“本次 expected 专家都收到合法 handoff，且每个单元都未被任何专家标为 skipped”；
 - 单模块也算 complete，但**不可发布 latest**；
-- `latest` 只由默认四模块完整覆盖更新。
+- `latest` 只由默认四模块完整覆盖、且最终 `verdict.mjs` contract 通过的 `/logi` 更新；`aggregate.mjs` 不写 latest。
 
 ### 8.5 运行日志
 
@@ -455,6 +457,7 @@ docs/logistics/latest.md # 仅默认四模块完整时更新
 - 派发：`lib/dispatch.js`
 - handoff/单元覆盖：`lib/handoffs.js`
 - 报告脱敏：`lib/redact.js`
+- latest 发布：`lib/latest.js`
 - 报告契约：`lib/report-check.js`
 - 测试命令展示：`lib/test-command.js`
 - 裁决：`lib/verdict.js`
@@ -463,4 +466,4 @@ docs/logistics/latest.md # 仅默认四模块完整时更新
 - 日志：`lib/runlog.js`
 - CLI：`lib/cli/collect.mjs`、`bundle.mjs`、`verdict.mjs`
 - 专家 skill：`skills/logi-correctness|security|reliability|maintainability|perf/SKILL.md`
-- 测试：`test/*.test.js`（92 个）
+- 测试：`test/*.test.js`（98 个）

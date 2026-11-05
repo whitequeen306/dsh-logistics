@@ -8,7 +8,7 @@
 >
 > 0.5.1 起，run 目录会带命令后缀：`/logi` 为 `...-master`，单专家为 `...-<expert>`；`/logi` 的 handoff 按专家分目录（`handoff/<expert>/<expert>.json`），单专家保持平铺（`handoff/<expert>.json`）。旧的平铺 run 仍可读取。
 >
-> 从 CodeCortexLoop（MIT，原仓库留存于 [master 分支](https://github.com/whitequeen306/dsh-logistics/tree/master)）迁移而来。0.2.0 删除评分、基线与门禁；0.3.0 起改为「主编模型 + 薄机器层」；0.4.0 把范围从改动集改成整个项目；0.5.0 把 `report.md` 定为唯一核心交付物，并要求每位专家单独写报告；0.5.1 让 run 目录和 `/logi` 的 handoff 按命令/专家分目录；0.6.0 移除 `/logi-fix`，插件不再提供写操作命令；0.6.1 在报告 contract 前增加确定性脱敏和残留凭据扫描；0.6.2 细化命令面板中的审查范围描述；0.6.3 把脱敏覆盖到全部运行产物，增加 finding 的 `direct`/`plan` 分区和结构化测试证据；0.6.4 把总报告改为按严重度排列并标注所属单元，同时生成 `graph.json` + `graph.html` 关系图；0.6.5 要求每条 finding 先写一句面向非开发者的“简述”，再接详细问题、证据、影响和修复；0.6.6 为每个单元标出核心必读文件，并要求专家声明实际读过的文件清单。设计记录见 [MODULE-DECISION.md](./MODULE-DECISION.md)。
+> 从 CodeCortexLoop（MIT，原仓库留存于 [master 分支](https://github.com/whitequeen306/dsh-logistics/tree/master)）迁移而来。0.2.0 删除评分、基线与门禁；0.3.0 起改为「主编模型 + 薄机器层」；0.4.0 把范围从改动集改成整个项目；0.5.0 把 `report.md` 定为唯一核心交付物，并要求每位专家单独写报告；0.5.1 让 run 目录和 `/logi` 的 handoff 按命令/专家分目录；0.6.0 移除 `/logi-fix`，插件不再提供写操作命令；0.6.1 在报告 contract 前增加确定性脱敏和残留凭据扫描；0.6.2 细化命令面板中的审查范围描述；0.6.3 把脱敏覆盖到全部运行产物，增加 finding 的 `direct`/`plan` 分区和结构化测试证据；0.6.4 把总报告改为按严重度排列并标注所属单元，同时生成 `graph.json` + `graph.html` 关系图；0.6.5 要求每条 finding 先写一句面向非开发者的“简述”，再接详细问题、证据、影响和修复；0.6.6 为每个单元标出核心必读文件，并要求专家声明实际读过的文件清单；0.6.7 让脱敏覆盖 `.bak`、临时脚本等全部常规文本产物，`latest` 只由最终 contract 通过的默认 `/logi` 报告发布，并要求模型删除自己创建的临时文件。设计记录见 [MODULE-DECISION.md](./MODULE-DECISION.md)。
 
 ## 核心交付物
 
@@ -54,7 +54,7 @@ C:\path\to\dsh-logistics
 **CLI / 非桌面 profile**：
 
 ```bash
-dsh plugin --profile web add dsh-logistics@0.6.5   # 0.6.6 仍在源码中，尚未发布
+dsh plugin --profile web add dsh-logistics@0.6.6   # 0.6.7 仍在源码中，尚未发布
 dsh plugin --profile web add "C:/path/to/dsh-logistics"   # 本地开发
 dsh --profile web --dump-config | grep -A2 dsh-logistics
 ```
@@ -218,9 +218,11 @@ docs/logistics/latest.md      # 仅默认四模块完整时更新
 
 ### 报告脱敏
 
-`verdict.mjs` 在 contract 校验**之前**扫描整个 run 目录下的文本产物——`report.md`、每位专家的 `.json`/`.md`、`packet.md`、`handoffs.json`、`verdict.json`、`run.jsonl`、`scope.json` 和 `docs/logistics/latest.md`——把高置信度凭据替换成 `[REDACTED:<kind>]`，并在 `run.jsonl` 写入 `secrets.redacted` 事件。覆盖私钥块、云厂商/平台 token、JWT、URL 内嵌密码、Basic/Bearer 认证和 `PASSWORD|SECRET|TOKEN|API_KEY=...` 赋值；`process.env.*`、`${...}`、`***` 等占位值不会误伤。
+`verdict.mjs` 在 contract 校验**之前**扫描整个 run 目录下的常规文本产物——`report.md`、每位专家的 `.json`/`.md`、`packet.md`、`handoffs.json`、`verdict.json`、`report.json`、`run.jsonl`、`scope.json`、`graph.json`、`.bak`/`.bak2`、临时 `.py`/`.sh` 和 `docs/logistics/latest.md`——把高置信度凭据替换成 `[REDACTED:<kind>]`，并在 `run.jsonl` 写入 `secrets.redacted` 事件。二进制文件不碰；无扩展名文件做 NUL 字节探测。覆盖私钥块、云厂商/平台 token、JWT、URL 内嵌密码、Basic/Bearer 认证和 `PASSWORD|SECRET|TOKEN|API_KEY=...` 赋值；`process.env.*`、`${...}`、`***` 等占位值不会误伤。
 
 脱敏后 `lib/report-check.js` 还会做一次残留扫描；报告里仍有疑似凭据时，该次 run 直接判为不合格。**脱敏不等于风险消除**：如果报告曾经包含真实凭据，请轮换该凭据，并检查 `docs/logistics/latest.md`、`.logistics/` 是否被误提交。
+
+子代理必须删除自己创建的临时文件（`*.bak`、`*.bak2`、`_repro_*`、临时脚本和调试输出）；`collect.mjs` 会列出 handoff 目录中的多余文件并警告。`latest` 只由 `verdict.mjs` 在最终报告和 verdict 都通过 contract 后发布，`aggregate.mjs` 不再写入 `latest`。
 
 每个 finding 有稳定 ID，例如 `SEC-4F2A1`，并包含 `brief`（一句话简述）、`title`（详细问题）、证据、影响和修复。ID 由 `专家 | 类别 | 文件 | 归一化标题` 计算，**不含行号**；代码移动不会让同一个问题换 ID。跨专家报告同一根因时，由主编决定保留哪一条，其余写入 `verdict.json` 的 `dropped`。
 
@@ -301,7 +303,7 @@ docs/logistics/latest.md      # 仅默认四模块完整时更新
 ## 开发
 
 ```bash
-npm test          # node --test，92 个测试（含全项目 scope、单元覆盖、核心文件/最低读取、报告契约、测试证据、脱敏、端到端 contract 与运行日志）
+npm test          # node --test，98 个测试（含全项目 scope、单元覆盖、核心文件/最低读取、报告契约、测试证据、脱敏、latest、端到端 contract 与运行日志）
 npm run check     # 语法检查 + 全部测试
 ```
 

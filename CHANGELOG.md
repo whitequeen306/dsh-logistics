@@ -2,6 +2,23 @@
 
 All notable changes to this project. Format follows [Keep a Changelog](https://keepachangelog.com/); versions use [SemVer](https://semver.org/).
 
+## [0.6.7] - 2026-11-05
+
+### Fixed
+
+- 脱敏从固定文本扩展名改为“常规文本即扫描”：覆盖 `.bak`、`.bak2`、临时 `.py`/`.sh`、无扩展名文本；二进制文件跳过。修复备份/复现脚本残留凭据的问题。
+- `latest.md` / `latest.json` 只在最终报告和 `verdict.json` 都通过 contract 后由 `verdict.mjs` 发布；`aggregate.mjs` 不再写 latest，避免旧格式或未校验报告覆盖。
+- `report.json` 等后续写入的文本产物也会被脱敏；残留凭据会导致 verdict 失败。
+- 子代理 prompt 要求删除自己创建的 `*.bak`、`_repro_*`、临时脚本；`collect.mjs` 发现 handoff 目录多余文件时警告。
+
+### Changed
+
+- 测试增至 98 个，新增全文本脱敏、latest 发布边界、aggregate 不发布 latest、临时文件警告用例。
+
+### Notes
+
+- 本次不打包、不发布；0.6.6 仍是 npm 最新版。
+
 ## [0.6.6] - 2026-11-05
 
 ### Added

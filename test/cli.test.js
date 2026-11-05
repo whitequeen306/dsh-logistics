@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { buildReport } from '../lib/report.js'
@@ -6,7 +7,9 @@ import {
   cleanup,
   handoff,
   initRepo,
+  makeProjectScope,
   makeScope,
+  projectHandoff,
   runCli,
   sampleFinding,
   write,
@@ -37,6 +40,22 @@ test('status reports missing handoffs, then ready after all experts finish', () 
     assert.equal(after.code, 0)
     assert.match(after.output, /correctness \[正确性\]: ok/u)
     assert.match(after.output, /ready: true/u)
+  } finally {
+    cleanup(root)
+  }
+})
+
+test('collect warns about handoff temp files instead of silently accepting them', () => {
+  const root = initRepo()
+  try {
+    const { scope } = makeProjectScope(root, ['security'])
+    write(scope.output.handoffDir, 'security/security.json', JSON.stringify(projectHandoff('security', scope, [])))
+    write(scope.output.handoffDir, 'security/security.json.bak', 'PASSWORD="hunter2"')
+    const result = runCli(pluginRoot, 'collect.mjs', ['--run', scope.output.runDir])
+    assert.equal(result.code, 0)
+    assert.match(result.output, /extra files/u)
+    assert.match(result.output, /security\.json\.bak/u)
+    assert.match(result.output, /临时文件/u)
   } finally {
     cleanup(root)
   }
@@ -107,6 +126,23 @@ test('partial or invalid handoffs keep latest unchanged and aggregate exits 3', 
     const fourth = runCli(pluginRoot, 'aggregate.mjs', ['--run', invalid.runDir])
     assert.equal(fourth.code, 3)
     assert.match(fourth.output, /invalid: correctness/u)
+  } finally {
+    cleanup(root)
+  }
+})
+
+test('project aggregate never publishes latest before verdict', () => {
+  const root = initRepo()
+  try {
+    const { scope } = makeProjectScope(root, ['correctness', 'security', 'reliability', 'maintainability'])
+    for (const expert of scope.experts) {
+      write(scope.output.handoffDir, `${expert}/${expert}.json`, JSON.stringify(projectHandoff(expert, scope, [])))
+    }
+    write(root, 'docs/logistics/latest.md', 'old latest\n')
+    const result = runCli(pluginRoot, 'aggregate.mjs', ['--run', scope.output.runDir])
+    assert.equal(result.code, 0)
+    assert.match(result.output, /由 verdict\.mjs/u)
+    assert.equal(readFileSync(`${root}/docs/logistics/latest.md`, 'utf8'), 'old latest\n')
   } finally {
     cleanup(root)
   }
