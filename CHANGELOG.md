@@ -2,6 +2,13 @@
 
 All notable changes to this project. Format follows [Keep a Changelog](https://keepachangelog.com/); versions use [SemVer](https://semver.org/).
 
+## [0.6.2] - 2026-11-05
+
+### Changed
+
+- DSH 命令面板中的命令描述写得更具体：正确性、安全、健壮性、可维护性、性能分别列出实际检查维度，例如安全包含认证授权、注入、浏览器安全、上传/SSRF、密钥、加密、数据暴露和依赖供应链。
+- 命令数量、参数和审查流程不变；测试保持 81 个。
+
 ## [0.6.1] - 2026-11-04
 
 ### Fixed
