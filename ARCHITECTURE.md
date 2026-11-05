@@ -1,6 +1,6 @@
-# dsh-logistics 架构与执行模型（0.6.3）
+# dsh-logistics 架构与执行模型（0.6.4）
 
-> 本文描述 **0.6.3 已实现**的结构，不是路线图。0.4.0 把审查范围从「工作区 diff / 最近提交」改成**整个项目**：`git ls-files` 全量清单 → 文件分类 → 模块切分 → 审查单元；每个专家覆盖全部单元，并用 handoff 的 `units` 映射声明 reviewed / sampled / skipped。0.5.0 把 `report.md` 定为核心交付物，要求每位专家另写报告，并由 `lib/report-check.js` 做 contract 校验。0.5.1 给 run 目录加命令后缀（`/logi` 为 `-master`，单专家为 `-<expert>`），并让 `/logi` 的 handoff 按专家分目录，旧平铺 run 仍可读。0.6.0 移除 `/logi-fix` 与独立 fixer，插件不提供写操作命令；审查子代理仍受 prompt 约束，需要修复时由用户把报告或 finding 交给主模型。0.6.1 在报告 contract 校验前加入确定性脱敏与残留凭据扫描；0.6.2 细化 DSH 命令面板中的审查范围描述；0.6.3 把脱敏扩展到 run 目录下全部文本产物，增加结构化测试证据与 `direct`/`plan` 报告分区。0.3.x 的主编模型、contract 校验和运行日志继续保留。
+> 本文描述 **0.6.4 已实现**的结构，不是路线图。0.4.0 把审查范围从「工作区 diff / 最近提交」改成**整个项目**：`git ls-files` 全量清单 → 文件分类 → 模块切分 → 审查单元；每个专家覆盖全部单元，并用 handoff 的 `units` 映射声明 reviewed / sampled / skipped。0.5.0 把 `report.md` 定为核心交付物，要求每位专家另写报告，并由 `lib/report-check.js` 做 contract 校验。0.5.1 给 run 目录加命令后缀（`/logi` 为 `-master`，单专家为 `-<expert>`），并让 `/logi` 的 handoff 按专家分目录，旧平铺 run 仍可读。0.6.0 移除 `/logi-fix` 与独立 fixer，插件不提供写操作命令；审查子代理仍受 prompt 约束，需要修复时由用户把报告或 finding 交给主模型。0.6.1 在报告 contract 校验前加入确定性脱敏与残留凭据扫描；0.6.2 细化 DSH 命令面板中的审查范围描述；0.6.3 把脱敏扩展到 run 目录下全部文本产物，增加结构化测试证据与 `direct`/`plan` 报告分区；0.6.4 把总报告改为按严重度排序并标注所属单元，并生成 `graph.json` + `graph.html` 关系图。0.3.x 的主编模型、contract 校验和运行日志继续保留。
 
 ## 1. 一句话模型
 
@@ -12,7 +12,8 @@
   → collect（盘点专家 + 单元覆盖，不是质量门禁）
   → bundle（候选材料 + 稳定 ID + 单元 × 专家矩阵）
   → 主会话模型合并/去重/定级/取舍，写 verdict.json + report.md
-  → verdict.mjs 先脱敏本次 run 的全部文本产物，再校验 contract（含 report.md、专家报告、测试证据与 direct/plan 分区；不判断内容好坏）
+  → verdict.mjs 先脱敏本次 run 的全部文本产物，再校验 contract（含 report.md、专家报告、测试证据、direct/plan 分区与严重度排序；不判断内容好坏）
+  → 生成 graph.json + graph.html（模块/问题/关系图）
   → 默认四模块完整时才更新 latest
 ```
 
@@ -30,7 +31,8 @@
 | 派发层 | `lib/dispatch.js` | 主编协议、child prompt、collect/bundle/verdict 命令 | 否 |
 | 专家层 | `skills/logi-*/SKILL.md` + `subagent` | 每位专家一个只读 child；共享契约内联在专家 skill 中 | 是 |
 | 收集层 | `lib/handoffs.js`、`lib/cli/collect.mjs` | 校验 handoff、section 计数、单元覆盖、专家报告索引、候选材料 | 否 |
-| 报告层 | `lib/report-check.js`、`lib/redact.js`、`lib/test-command.js` | 全部文本产物脱敏与残留扫描、report.md / 专家报告 / 测试证据 / direct-plan 分区 contract 校验、多测试命令展示 | 否 |
+| 报告层 | `lib/report-check.js`、`lib/redact.js`、`lib/test-command.js` | 全部文本产物脱敏与残留扫描、report.md / 专家报告 / 测试证据 / direct-plan 分区 / 严重度排序 contract 校验、多测试命令展示 | 否 |
+| 图形层 | `lib/graph.js` | 由 verdict 生成 graph.json 与自包含 graph.html（模块/问题/关系） | 否 |
 | 裁决层 | `lib/verdict.js`、`lib/cli/verdict.mjs` | verdict contract 校验、稳定 ID、覆盖检查、报告校验 | 否 |
 | 配置层 | `lib/config.js`、`lib/constants.js` | 忽略、上限、测试命令、模块显示名、专家模型路由 | 否 |
 | 日志层 | `lib/runlog.js` | `run.jsonl`、`dispatch.md`、`prompts/` | 否 |
@@ -150,7 +152,7 @@ groupUnits:
 ```json
 {
   "schemaVersion": 2,
-  "version": "0.6.3",
+  "version": "0.6.4",
   "runId": "20261104-...",
   "mode": "project",
   "source": "project",
@@ -300,6 +302,8 @@ subagent({
   packet.md              # 给主编的候选材料 + 单元 × 专家矩阵
   verdict.json           # 主编裁决（机器校验 contract）
   report.md              # 核心交付物：完整项目报告
+  graph.json             # 模块/问题/关系图（插件生成）
+  graph.html             # 自带 SVG 的浏览器视图（插件生成）
 .logistics/latest.json   # 仅默认四模块完整时更新
 docs/logistics/latest.md # 仅默认四模块完整时更新
 ```
@@ -310,15 +314,23 @@ docs/logistics/latest.md # 仅默认四模块完整时更新
 
 - `scope.output.reportMarkdown` 存在，trim 后至少 1200 字符；
 - 含“一句话结论 / 覆盖 / 发现或问题 / 修复 / 测试证据 / 缺口或未验证”章节；
+- 0.6.4 起，`## 发现` 中每条 finding 必须带 `[severity]` 与 `[uXX]` 单元标签，且按 critical → high → medium → low 非递减排序；
 - 出现全部 `scope.project.units[].id`；
 - verdict 有 findings 时，报告至少出现一个 `file:line`；
 - 0.6.3 起，`direct` findings 必须进入 `## 可直接修`、`plan` findings 必须进入 `## 需方案`，且正文出现 `[可直接修]` / `[需方案]` 标记；
 - 0.6.3 起，`## 测试证据` 必须包含 `scope.testCommands` 中的每一条命令；
+- 0.6.4 起，finding 的所属单元由报告路径映射到 `project.units`，并在报告中显式标出；
 - 每位 expected 专家的 Markdown 报告存在、至少 500 字符、有 Markdown 标题（`/logi` 读 `handoff/<expert>/<expert>.md`，单专家读 `handoff/<expert>.md`，并回退旧平铺路径）；
 - 总报告包含每位专家的实际报告路径索引；
 - 总报告和专家报告中没有残留的疑似凭据（脱敏后仍命中则直接判不合格）。
 
 任一项失败，`verdict.mjs` 返回非零，run 不算完成，也不会更新 latest。`report.md` 不是 `verdict.json` 的附属摘要，而是最终给用户阅读和带走的产物。
+
+### 8.1.2 关系图
+
+`verdict.json` 通过 `relations` 数组声明 finding 之间的关系：`{from,to,type,reason}`，`type` 只能是 `shared-root-cause`、`same-file`、`depends-on`、`contradicts`、`related`。`lib/verdict.js` 校验 ID 必须存在于本次 findings、禁止自环、禁止重复 `from->to:type`。
+
+`lib/graph.js` 的 `buildGraph({scope,verdict})` 生成模块节点（按 `moduleOf(file)` 从路径推导，避免模型把单元 ID 当模块）、finding 节点、`located-in` 定位边和模型关系边；`renderGraphHtml` 生成自包含 HTML + 内联 SVG（模块在左、按严重度排序的 finding 在右、关系曲线带类型颜色和 tooltip），不依赖 Graphviz/Mermaid/CDN。`writeGraph` 在 verdict 校验成功后写 `graph.json` 与 `graph.html`；图形生成失败会使本次 verdict 失败。
 
 ### 8.2 finding
 
@@ -445,4 +457,4 @@ docs/logistics/latest.md # 仅默认四模块完整时更新
 - 日志：`lib/runlog.js`
 - CLI：`lib/cli/collect.mjs`、`bundle.mjs`、`verdict.mjs`
 - 专家 skill：`skills/logi-correctness|security|reliability|maintainability|perf/SKILL.md`
-- 测试：`test/*.test.js`（84 个）
+- 测试：`test/*.test.js`（89 个）

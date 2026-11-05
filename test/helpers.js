@@ -2,7 +2,7 @@ import { execFileSync, spawnSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { EXPERT_BY_KEY, DEFAULT_CONFIG } from '../lib/constants.js'
+import { EXPERT_BY_KEY, DEFAULT_CONFIG, SEVERITIES } from '../lib/constants.js'
 import { handoffMarkdownPath, handoffRelPath } from '../lib/handoff-paths.js'
 import { createScope } from '../lib/scope.js'
 
@@ -112,6 +112,10 @@ export function projectHandoff(expert, scope, findings = [], extra = {}) {
 
 export function aggregateReport(scope, findings = []) {
   const units = scope.project?.units ?? []
+  const unitOf = (file) => units.find((unit) => (unit.files ?? []).some((item) => item.path === file))?.id ?? ''
+  const ordered = [...findings].sort((a, b) =>
+    (SEVERITIES[a.severity]?.rank ?? 9) - (SEVERITIES[b.severity]?.rank ?? 9)
+    || String(a.id ?? '').localeCompare(String(b.id ?? '')))
   const lines = [
     '# 项目审查报告',
     '',
@@ -124,9 +128,9 @@ export function aggregateReport(scope, findings = []) {
     ...units.map((unit) => `| ${unit.id} | ${unit.label} | ${(scope.experts ?? []).join('、')} | reviewed |`),
     '',
     '## 发现',
-    findings.length === 0
+    ordered.length === 0
       ? '- 已查区域未发现问题。'
-      : findings.map((finding) => `- ${finding.title}：\`${finding.file}:${finding.line}\``).join('\n'),
+      : ordered.map((finding) => `- [${finding.severity}] [${unitOf(finding.file)}] [${finding.kind}] ${finding.id} — ${finding.title}：\`${finding.file}:${finding.line}\``).join('\n'),
     '',
     '## 修复建议',
     '- 先处理 high 及其以上，再处理同文件的低风险项。',

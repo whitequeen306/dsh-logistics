@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { DEFAULT_EXPERTS } from '../lib/constants.js'
+import { validateReport } from '../lib/report-check.js'
 import { validateVerdict } from '../lib/verdict.js'
 import {
   aggregateReport,
@@ -344,7 +345,74 @@ test('project verdict requires an aggregate report and every expert report', () 
   }
 })
 
-test('project handoffs require structured test evidence on 0.6.3', () => {
+test('project verdict validates model relations for the graph', () => {
+  const root = initRepo()
+  try {
+    const created = makeProjectScope(root, ['security'])
+    const finding = { ...sampleFinding('security'), id: 'SEC-ABC12', expert: 'security', module: 'src' }
+    write(created.runDir, 'handoff/security.json', JSON.stringify(projectHandoff('security', created.scope, [finding]), null, 2))
+    write(created.runDir, 'report.md', aggregateReport(created.scope, [finding]))
+    const base = {
+      schemaVersion: 2,
+      runId: created.scope.runId,
+      coverage: { expected: ['security'], received: ['security'], missing: [], complete: true },
+      findings: [finding],
+    }
+
+    const unknown = validateVerdict({
+      root,
+      scope: created.scope,
+      verdict: { ...base, relations: [{ from: 'SEC-ABC12', to: 'SEC-ZZZZZ', type: 'related', reason: 'x' }] },
+    })
+    assert.equal(unknown.ok, false)
+    assert.match(unknown.errors.join('\n'), /不是本 verdict 的 finding/u)
+
+    const self = validateVerdict({
+      root,
+      scope: created.scope,
+      verdict: { ...base, relations: [{ from: 'SEC-ABC12', to: 'SEC-ABC12', type: 'related', reason: 'x' }] },
+    })
+    assert.equal(self.ok, false)
+    assert.match(self.errors.join('\n'), /不能连接自己/u)
+
+    const valid = validateVerdict({ root, scope: created.scope, verdict: { ...base, relations: [] } })
+    assert.equal(valid.ok, true, valid.errors.join('\n'))
+    assert.deepEqual(valid.verdict.relations, [])
+  } finally {
+    cleanup(root)
+  }
+})
+
+test('project report rejects findings that are not ordered by severity', () => {
+  const root = initRepo()
+  try {
+    const created = makeProjectScope(root, ['security'])
+    const high = { ...sampleFinding('security'), id: 'SEC-A1111', severity: 'high', title: '高风险问题', file: 'src/a.js' }
+    const low = { ...sampleFinding('security'), id: 'SEC-B2222', severity: 'low', title: '低风险问题', file: 'src/a.js' }
+    write(created.runDir, 'handoff/security.json', JSON.stringify(projectHandoff('security', created.scope, [high, low]), null, 2))
+    write(created.runDir, 'report.md', aggregateReport(created.scope, [low, high]))
+    const verdict = { findings: [low, high] }
+    const ok = validateReport({ scope: created.scope, verdict })
+    assert.deepEqual(ok.errors, [])
+
+    const reportPath = created.scope.output.reportMarkdown
+    const text = readFileSync(reportPath, 'utf8')
+    const start = text.indexOf('## 发现')
+    const end = text.indexOf('\n## 修复建议', start)
+    const lowLine = '- [low] [u01] [direct] SEC-B2222 — 低风险问题：`src/a.js:2`'
+    const highLine = '- [high] [u01] [direct] SEC-A1111 — 高风险问题：`src/a.js:2`'
+    write(created.runDir, 'report.md', `${text.slice(0, start)}## 发现
+${lowLine}
+${highLine}
+${text.slice(end)}`)
+    const bad = validateReport({ scope: created.scope, verdict })
+    assert.equal(bad.errors.some((error) => /未按严重度排序/u.test(error)), true, bad.errors.join('\n'))
+  } finally {
+    cleanup(root)
+  }
+})
+
+test('project handoffs require structured test evidence on 0.6.4', () => {
   const root = initRepo()
   try {
     const created = makeProjectScope(root, ['security'])

@@ -120,7 +120,7 @@ test('redactArtifacts sanitizes JSON, logs, and nested expert artifacts too', ()
   }
 })
 
-test('0.6.3 report requires direct/plan markers and test evidence', () => {
+test('0.6.4 report requires direct/plan markers and test evidence', () => {
   const root = initRepo()
   try {
     const { scope } = makeProjectScope(root, ['security'])
