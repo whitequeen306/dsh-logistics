@@ -8,13 +8,24 @@
 >
 > 0.5.1 起，run 目录会带命令后缀：`/logi` 为 `...-master`，单专家为 `...-<expert>`；`/logi` 的 handoff 按专家分目录（`handoff/<expert>/<expert>.json`），单专家保持平铺（`handoff/<expert>.json`）。旧的平铺 run 仍可读取。
 >
-> 从 CodeCortexLoop（MIT，原仓库留存于 [master 分支](https://github.com/whitequeen306/dsh-logistics/tree/master)）迁移而来。0.2.0 删除评分、基线与门禁；0.3.0 起改为「主编模型 + 薄机器层」；0.4.0 把范围从改动集改成整个项目；0.5.0 把 `report.md` 定为唯一核心交付物，并要求每位专家单独写报告；0.5.1 让 run 目录和 `/logi` 的 handoff 按命令/专家分目录；0.6.0 移除 `/logi-fix`，插件不再提供写操作命令；0.6.1 在报告 contract 前增加确定性脱敏和残留凭据扫描；0.6.2 细化命令面板中的审查范围描述。设计记录见 [MODULE-DECISION.md](./MODULE-DECISION.md)。
+> 从 CodeCortexLoop（MIT，原仓库留存于 [master 分支](https://github.com/whitequeen306/dsh-logistics/tree/master)）迁移而来。0.2.0 删除评分、基线与门禁；0.3.0 起改为「主编模型 + 薄机器层」；0.4.0 把范围从改动集改成整个项目；0.5.0 把 `report.md` 定为唯一核心交付物，并要求每位专家单独写报告；0.5.1 让 run 目录和 `/logi` 的 handoff 按命令/专家分目录；0.6.0 移除 `/logi-fix`，插件不再提供写操作命令；0.6.1 在报告 contract 前增加确定性脱敏和残留凭据扫描；0.6.2 细化命令面板中的审查范围描述；0.6.3 把脱敏覆盖到全部运行产物，增加 finding 的 `direct`/`plan` 分区和结构化测试证据。设计记录见 [MODULE-DECISION.md](./MODULE-DECISION.md)。
 
 ## 核心交付物
 
-每次审查的最终产品是 **`.logistics/runs/<runId>/report.md`**：它必须能独立交给用户阅读，包含项目总览、单元 × 专家覆盖矩阵、按模块组织的问题、证据、修复顺序与覆盖缺口。`verdict.json` 只是机器判决，不能替代报告。
+每次审查的最终产品是 **`.logistics/runs/<runId>-master/report.md`**（单专家为 `<runId>-<expert>`）：它必须能独立交给用户阅读，包含项目总览、单元 × 专家覆盖矩阵、按模块组织的问题、证据、修复顺序与覆盖缺口。`verdict.json` 只是机器判决，不能替代报告。
 
 每位专家还会写一份自己的报告：`/logi` 在 `handoff/<expert>/<expert>.md`，单专家在 `handoff/<expert>.md`；总报告必须索引这些专家报告。报告缺失、过短或缺少关键章节时，`verdict.mjs` 会拒绝该次 run。
+
+报告把 finding 标成 `[可直接修]` 或 `[需方案]`，并分别给出 `## 可直接修` / `## 需方案` 清单；同时用 `## 测试证据` 逐条列出测试命令的 passed / failed / not-run。不要把“未跑测试”写成“测试通过”。
+
+> **产物目录不要提交。** `.logistics/` 和 `docs/logistics/` 含完整报告和证据，可能包含源码片段；请把它们加入项目 `.gitignore`：
+>
+> ```gitignore
+> .logistics/
+> docs/logistics/
+> ```
+>
+> 插件只能在扫描时忽略它们，不能替你保证不被 `git add -A` 提交。
 
 ## 它能做什么
 
@@ -40,7 +51,7 @@ C:\path\to\dsh-logistics
 **CLI / 非桌面 profile**：
 
 ```bash
-dsh plugin --profile web add dsh-logistics@0.6.2
+dsh plugin --profile web add dsh-logistics@0.6.2   # 0.6.3 仍在源码中，尚未发布
 dsh plugin --profile web add "C:/path/to/dsh-logistics"   # 本地开发
 dsh --profile web --dump-config | grep -A2 dsh-logistics
 ```
@@ -74,7 +85,7 @@ dsh --profile web --dump-config | grep -A2 dsh-logistics
    ├─ 1. 确定性事实（插件内 JS）
    │     git ls-files 全量清单、文件分类、模块归属、行数、
    │     审查单元划分、测试命令
-   │     → .logistics/runs/<runId>/scope.json
+   │     → .logistics/runs/<runId>-master/scope.json  # 单专家为 -<expert>
    │
    ├─ 2. 注入派发消息（agent.followup）
    │     主会话模型成为「主编」：读 scope.json，
@@ -190,11 +201,11 @@ docs/logistics/latest.md      # 仅默认四模块完整时更新
 - **建议修复顺序**：同文件合并、根因先行、可维护性单独批次、性能单独批次。
 - **专家报告索引**：`/logi` 为 `handoff/<expert>/<expert>.md`，单专家为 `handoff/<expert>.md`；每位专家另有独立报告。
 
-`report.md` 是核心交付物；`verdict.mjs` 会检查它是否存在、长度、关键章节、是否出现全部单元 ID、finding 是否有 `file:line`，以及专家报告是否存在且被总报告索引。报告不达标时，该次 run 不能算完成，也不会更新 `latest`。
+`report.md` 是核心交付物；`verdict.mjs` 会检查它是否存在、长度、关键章节、是否出现全部单元 ID、finding 是否有 `file:line`、`direct`/`plan` 是否各自进入 `## 可直接修` / `## 需方案`、是否包含 `## 测试证据` 与全部测试命令，以及专家报告是否存在且被总报告索引。报告不达标时，该次 run 不能算完成，也不会更新 `latest`。
 
 ### 报告脱敏
 
-`verdict.mjs` 在 contract 校验**之前**扫描 `report.md`、每位专家的 `handoff/<expert>/<expert>.md`、`packet.md` 和 `docs/logistics/latest.md`，把高置信度凭据替换成 `[REDACTED:<kind>]`，并在 `run.jsonl` 写入 `secrets.redacted` 事件。覆盖私钥块、云厂商/平台 token、JWT、URL 内嵌密码、Basic/Bearer 认证和 `PASSWORD|SECRET|TOKEN|API_KEY=...` 赋值；`process.env.*`、`${...}`、`***` 等占位值不会误伤。
+`verdict.mjs` 在 contract 校验**之前**扫描整个 run 目录下的文本产物——`report.md`、每位专家的 `.json`/`.md`、`packet.md`、`handoffs.json`、`verdict.json`、`run.jsonl`、`scope.json` 和 `docs/logistics/latest.md`——把高置信度凭据替换成 `[REDACTED:<kind>]`，并在 `run.jsonl` 写入 `secrets.redacted` 事件。覆盖私钥块、云厂商/平台 token、JWT、URL 内嵌密码、Basic/Bearer 认证和 `PASSWORD|SECRET|TOKEN|API_KEY=...` 赋值；`process.env.*`、`${...}`、`***` 等占位值不会误伤。
 
 脱敏后 `lib/report-check.js` 还会做一次残留扫描；报告里仍有疑似凭据时，该次 run 直接判为不合格。**脱敏不等于风险消除**：如果报告曾经包含真实凭据，请轮换该凭据，并检查 `docs/logistics/latest.md`、`.logistics/` 是否被误提交。
 
@@ -275,7 +286,7 @@ docs/logistics/latest.md      # 仅默认四模块完整时更新
 ## 开发
 
 ```bash
-npm test          # node --test，81 个测试（含全项目 scope、单元覆盖、报告契约、脱敏、端到端 contract 与运行日志）
+npm test          # node --test，84 个测试（含全项目 scope、单元覆盖、报告契约、测试证据、脱敏、端到端 contract 与运行日志）
 npm run check     # 语法检查 + 全部测试
 ```
 
@@ -290,7 +301,7 @@ lib/
   dispatch.js     # 主编/子代理 prompt、collect/bundle/verdict 命令
   handoffs.js     # handoff 校验、单元覆盖、专家报告、矩阵
   report-check.js # report.md 与专家报告的 contract 校验、残留凭据扫描
-  redact.js       # 报告/专家报告/latest 的确定性脱敏
+  redact.js       # 全部运行文本产物（JSON/MD/log）的确定性脱敏与残留扫描
   test-command.js # 一条/多条测试命令的展示
   handoff-paths.js # run/handoff 路径：/logi 嵌套，单专家平铺，旧 run 兼容
   verdict.js      # 主编裁决 contract 校验

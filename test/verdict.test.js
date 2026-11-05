@@ -344,6 +344,38 @@ test('project verdict requires an aggregate report and every expert report', () 
   }
 })
 
+test('project handoffs require structured test evidence on 0.6.3', () => {
+  const root = initRepo()
+  try {
+    const created = makeProjectScope(root, ['security'])
+    const handoffValue = projectHandoff('security', created.scope)
+    const verdict = {
+      schemaVersion: 2,
+      runId: created.scope.runId,
+      coverage: { expected: ['security'], received: ['security'], missing: [], complete: true },
+      findings: [],
+    }
+
+    delete handoffValue.tests
+    write(created.runDir, 'handoff/security.json', JSON.stringify(handoffValue, null, 2))
+    const missing = validateVerdict({ root, scope: created.scope, verdict })
+    assert.equal(missing.ok, false)
+    assert.match(missing.errors.join('\\n'), /tests 缺少/u)
+
+    write(created.runDir, 'handoff/security.json', JSON.stringify({ ...handoffValue, tests: { commands: [] } }, null, 2))
+    const empty = validateVerdict({ root, scope: created.scope, verdict })
+    assert.equal(empty.ok, false)
+    assert.match(empty.errors.join('\\n'), /tests\.commands 缺少/u)
+
+    write(created.runDir, 'report.md', aggregateReport(created.scope))
+    write(created.runDir, 'handoff/security.json', JSON.stringify(projectHandoff('security', created.scope), null, 2))
+    const valid = validateVerdict({ root, scope: created.scope, verdict })
+    assert.equal(valid.ok, true, valid.errors.join('\\n'))
+  } finally {
+    cleanup(root)
+  }
+})
+
 test('legacy 0.4 project verdicts stay readable without expert reports', () => {
   const root = initRepo()
   try {

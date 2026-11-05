@@ -2,6 +2,23 @@
 
 All notable changes to this project. Format follows [Keep a Changelog](https://keepachangelog.com/); versions use [SemVer](https://semver.org/).
 
+## [0.6.3] - 2026-11-05
+
+### Fixed
+
+- **机器产物凭据残留**：`redactArtifacts` 现在扫描整个 run 目录下的文本产物（`report.md`、专家 `.json`/`.md`、`packet.md`、`handoffs.json`、`verdict.json`、`run.jsonl`、`scope.json`）和 `docs/logistics/latest.md`，不再只处理 Markdown；脱敏后仍命中凭据时直接判 run 不合格。
+- 命令回复和文档明确提示 `.logistics/`、`docs/logistics/` 不应提交，并建议加入项目 `.gitignore`。
+
+### Added
+
+- handoff 新增 `tests.commands`：逐条声明 `scope.testCommands` 的 `passed / failed / not-run`；0.6.3 项目运行缺失或漏命令会判 invalid。
+- 报告 contract 新增 `## 测试证据`、`## 可直接修`、`## 需方案` 和 `[可直接修]` / `[需方案]` 标记；报告必须覆盖 verdict 中的 direct/plan ID 和全部测试命令。
+
+### Changed
+
+- 测试增至 84 个，新增全产物脱敏、测试证据契约和 direct/plan 报告契约用例。
+- 文档与架构说明更新到 0.6.3；本次不打包、不发布。
+
 ## [0.6.2] - 2026-11-05
 
 ### Changed

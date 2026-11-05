@@ -102,7 +102,12 @@ export function projectHandoff(expert, scope, findings = [], extra = {}) {
   const reportPath = handoffMarkdownPath(scope, expert)
   mkdirSync(dirname(reportPath), { recursive: true })
   writeFileSync(reportPath, expertReportText(expert, scope, findings))
-  return handoff(expert, findings, { units, ...extra })
+  const tests = {
+    commands: (scope.testCommands?.length ? scope.testCommands : scope.testCommand ? [scope.testCommand] : [])
+      .map((item) => ({ command: item.command, status: 'not-run', note: '测试夹具未执行' })),
+    summary: '测试夹具：仅验证 contract',
+  }
+  return handoff(expert, findings, { units, tests, ...extra })
 }
 
 export function aggregateReport(scope, findings = []) {
@@ -125,6 +130,16 @@ export function aggregateReport(scope, findings = []) {
     '',
     '## 修复建议',
     '- 先处理 high 及其以上，再处理同文件的低风险项。',
+    '',
+    '## 测试证据',
+    ...((scope.testCommands?.length ? scope.testCommands : scope.testCommand ? [scope.testCommand] : [])
+      .map((item) => `- \`${item.command}\`：not-run（测试夹具）`)),
+    '',
+    '## 可直接修',
+    ...findings.filter((finding) => finding.kind === 'direct').map((finding) => `- [可直接修] ${finding.id ?? finding.title}`),
+    '',
+    '## 需方案',
+    ...findings.filter((finding) => finding.kind === 'plan').map((finding) => `- [需方案] ${finding.id ?? finding.title}`),
     '',
     '## 覆盖缺口',
     '- 无。',

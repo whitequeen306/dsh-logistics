@@ -77,6 +77,8 @@ test('/logi creates a four-expert pipeline scope and queues one dispatch', async
     assert.equal(result.kind, 'success')
     assert.match(result.text, /4 位专家/u)
     assert.match(result.text, /全项目/u)
+    assert.match(result.text, /产物目录不要提交/u)
+    assert.match(result.text, /\.logistics\//u)
     assert.equal(messages.length, 1)
     assert.match(messages[0].content[0].text, /项目后勤派发 · \/logi/u)
     assert.match(messages[0].content[0].text, /全项目审查/u)

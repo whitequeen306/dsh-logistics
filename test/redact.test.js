@@ -2,8 +2,8 @@ import assert from 'node:assert/strict'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import test from 'node:test'
-import { handoffMarkdownPath } from '../lib/handoff-paths.js'
-import { redactFile, redactReportArtifacts, redactSecrets, scanSecrets } from '../lib/redact.js'
+import { handoffJsonPath, handoffMarkdownPath } from '../lib/handoff-paths.js'
+import { redactArtifacts, redactFile, redactReportArtifacts, redactSecrets, scanArtifacts, scanSecrets } from '../lib/redact.js'
 import { validateReport } from '../lib/report-check.js'
 import {
   aggregateReport,
@@ -78,6 +78,67 @@ test('redactFile rewrites only when a secret is present', () => {
     const clean = redactFile(cleanPath)
     assert.equal(clean.changed, false)
     assert.equal(readFileSync(cleanPath, 'utf8'), 'no secrets here\n')
+  } finally {
+    cleanup(root)
+  }
+})
+
+test('redactArtifacts sanitizes JSON, logs, and nested expert artifacts too', () => {
+  const root = initRepo()
+  try {
+    const { scope } = makeProjectScope(root, ['security', 'correctness'])
+    const leak = 'PASSWORD="hunter2"'
+    const finding = sampleFinding('security', { file: 'src/a.js', line: 1, evidence: leak })
+    const handoff = projectHandoff('security', scope, [finding])
+    writeFileSync(handoffJsonPath(scope, 'security'), JSON.stringify(handoff))
+    write(scope.output.runDir, 'handoffs.json', JSON.stringify({ findings: [{ id: 'SEC-00001', evidence: leak }] }))
+    write(scope.output.runDir, 'verdict.json', JSON.stringify({ note: leak }))
+    write(scope.output.runDir, 'packet.md', `# packet\n\n${leak}\n`)
+    write(scope.output.runDir, 'run.jsonl', `${JSON.stringify({ event: 'probe', detail: leak })}\n`)
+    writeFileSync(scope.output.reportMarkdown, `${aggregateReport(scope, [finding])}\n## 配置\n${leak}\n`)
+    write(root, 'docs/logistics/latest.md', `# latest\n\n${leak}\n`)
+
+    assert.ok(scanArtifacts(scope).total >= 5)
+    const result = redactArtifacts(scope)
+    assert.ok(result.files.length >= 5, result.files)
+    assert.ok(result.total >= 5, result.total)
+    assert.equal(scanArtifacts(scope).total, 0)
+
+    for (const path of [
+      handoffJsonPath(scope, 'security'),
+      join(scope.output.runDir, 'handoffs.json'),
+      join(scope.output.runDir, 'verdict.json'),
+      join(scope.output.runDir, 'packet.md'),
+      join(scope.output.runDir, 'run.jsonl'),
+      scope.output.reportMarkdown,
+      scope.output.latestMarkdown,
+    ]) {
+      assert.doesNotMatch(readFileSync(path, 'utf8'), /hunter2/u, path)
+    }
+  } finally {
+    cleanup(root)
+  }
+})
+
+test('0.6.3 report requires direct/plan markers and test evidence', () => {
+  const root = initRepo()
+  try {
+    const { scope } = makeProjectScope(root, ['security'])
+    const finding = { ...sampleFinding('security'), id: 'SEC-00001', kind: 'direct' }
+    write(scope.output.handoffDir, 'security.json', JSON.stringify(projectHandoff('security', scope, [finding])))
+    const report = aggregateReport(scope, [finding])
+    writeFileSync(scope.output.reportMarkdown, report)
+
+    const missingMarker = validateReport({ scope, verdict: { findings: [finding] } })
+    assert.equal(missingMarker.errors.length, 0, missingMarker.errors.join('\n'))
+
+    writeFileSync(scope.output.reportMarkdown, report.replace('[可直接修]', '[FIX]'))
+    const noMarker = validateReport({ scope, verdict: { findings: [finding] } })
+    assert.ok(noMarker.errors.some((error) => error.includes('没有 [可直接修]')), noMarker.errors.join('\n'))
+
+    writeFileSync(scope.output.reportMarkdown, report.replace(/## 测试证据[\s\S]*?(?=\n## )/u, ''))
+    const noTests = validateReport({ scope, verdict: { findings: [finding] } })
+    assert.ok(noTests.errors.some((error) => error.includes('测试证据')), noTests.errors.join('\n'))
   } finally {
     cleanup(root)
   }
