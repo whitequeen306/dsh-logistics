@@ -330,7 +330,7 @@ docs/logistics/latest.md # 仅默认四模块完整时更新
 
 `verdict.json` 通过 `relations` 数组声明 finding 之间的关系：`{from,to,type,reason}`，`type` 只能是 `shared-root-cause`、`same-file`、`depends-on`、`contradicts`、`related`。`lib/verdict.js` 校验 ID 必须存在于本次 findings、禁止自环、禁止重复 `from->to:type`。
 
-`lib/graph.js` 的 `buildGraph({scope,verdict})` 生成模块节点（按 `moduleOf(file)` 从路径推导，避免模型把单元 ID 当模块）、finding 节点、`located-in` 定位边和模型关系边；`renderGraphHtml` 生成自包含 HTML + 内联 SVG：每个模块是一栏，按严重度排序的 finding 卡片放在所属模块栏内，用布局表达一对多归属；模型关系用跨栏/同栏曲线和类型颜色表示，带 tooltip。不依赖 Graphviz/Mermaid/CDN。`writeGraph` 在 verdict 校验成功后写 `graph.json` 与 `graph.html`；图形生成失败会使本次 verdict 失败。
+`lib/graph.js` 的 `buildGraph({scope,verdict})` 生成模块节点（按 `moduleOf(file)` 从路径推导，避免模型把单元 ID 当模块）、finding 节点、`located-in` 定位边和模型关系边；`renderGraphHtml` 生成自包含 HTML + 内联 SVG：每个模块是一栏，按严重度排序的 finding 卡片放在所属模块栏内，用布局表达一对多归属；HTML 只画模块分栏，不画模块定位线或问题关系线，卡片 `<title>` 提供完整标题、证据、影响和修复摘要的悬停提示。`graph.json` 保留 `located-in` 和 `relations` 机器数据。不依赖 Graphviz/Mermaid/CDN。`writeGraph` 在 verdict 校验成功后写 `graph.json` 与 `graph.html`；图形生成失败会使本次 verdict 失败。
 
 ### 8.2 finding
 

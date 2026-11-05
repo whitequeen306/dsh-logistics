@@ -13,6 +13,9 @@ function finding(overrides = {}) {
     module: 'src',
     file: 'src/a.js',
     line: 2,
+    evidence: '请求头缺失时直接跳过校验。',
+    impact: '任意用户可读取他人会话。',
+    fix: { summary: '缺头时返回 401。' },
     ...overrides,
   }
 }
@@ -47,8 +50,10 @@ test('builds a module-grouped graph with model relations', () => {
     assert.equal(findingNodes[0].id, 'COR-DEF34')
     assert.equal(findingNodes[0].unit, 'u01')
     const html = renderGraphHtml(graph)
-    assert.match(html, /relation-edge/u)
-    assert.match(html, /同一根因|shared-root-cause/u)
+    assert.doesNotMatch(html, /relation-edge/u)
+    assert.doesNotMatch(html, /shared-root-cause/u)
+    assert.match(html, /证据：请求头缺失时直接跳过校验/u)
+    assert.match(html, /影响：任意用户可读取他人会话/u)
   } finally {
     cleanup(root)
   }
