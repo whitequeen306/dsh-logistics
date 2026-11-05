@@ -80,7 +80,7 @@ function expertReportText(expert, scope, findings) {
     '## 发现',
     findings.length === 0
       ? '- 已查区域未发现问题。'
-      : findings.map((finding) => `- ${finding.title}：\`${finding.file}:${finding.line}\`；${finding.evidence}`).join('\n'),
+      : findings.map((finding) => `- 简述：${finding.brief || finding.title}\n  详细问题：${finding.title}：\`${finding.file}:${finding.line}\`；${finding.evidence}`).join('\n'),
     '',
     '## 未验证与抽样',
     '- 本测试报告覆盖全部单元；生产运行必须如实标注 sampled/skipped。',
@@ -130,7 +130,12 @@ export function aggregateReport(scope, findings = []) {
     '## 发现',
     ordered.length === 0
       ? '- 已查区域未发现问题。'
-      : ordered.map((finding) => `- [${finding.severity}] [${unitOf(finding.file)}] [${finding.kind}] ${finding.id} — ${finding.title}：\`${finding.file}:${finding.line}\``).join('\n'),
+      : ordered.map((finding) => [
+        `- [${finding.severity}] [${unitOf(finding.file)}] [${finding.kind}] ${finding.id} — 简述：${finding.brief || finding.title}`,
+        `  详细问题：${finding.title}`,
+        `  位置：${finding.file}:${finding.line} · 证据：${finding.evidence || '（无）'}`,
+        `  影响：${finding.impact || '（无）'} · 修复：${finding.fix?.summary || '（无）'}`,
+      ].join('\n')).join('\n'),
     '',
     '## 修复建议',
     '- 先处理 high 及其以上，再处理同文件的低风险项。',
@@ -181,6 +186,7 @@ export function sampleFinding(expert = 'correctness', overrides = {}) {
     category: info.domain,
     severity: 'high',
     confidence: 'high',
+    brief: '这段逻辑会让普通用户看到错误结果。',
     title: '示例问题',
     file: 'src/a.js',
     line: 2,

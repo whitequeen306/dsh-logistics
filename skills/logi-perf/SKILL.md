@@ -23,16 +23,16 @@ directory and `scope.json`; your output is one handoff JSON plus one Markdown ex
 - Inspect every section named in your Child prompt. `sections` counts must equal the
   number of findings in that section; 0 means "checked and clean". If you genuinely
   cannot inspect a section, use `status: "partial"` and explain in `notes`.
-- At most 12 findings. `title`, `summary`, `impact`, and `fix.*` are Chinese; paths,
+- At most 12 findings. `brief`, `title`, `summary`, `impact`, and `fix.*` are Chinese; paths,
   identifiers, and command output stay as-is.
 - `kind: "direct"` only for a mechanical, low-risk fix inside `fix.files`;
   otherwise `kind: "plan"`. Performance findings are **always** `plan`.
-- Finding fields: `section`, `category`, `severity`, `confidence`, `title`, `file`,
+- Finding fields: `section`, `category`, `severity`, `confidence`, `brief`（非开发者能懂的一句话简述）, `title`（详细问题）, `file`,
   `line`, `evidence`, `impact`, `fix{summary,steps,files,tests}`, `kind`.
 - Write to the exact JSON handoff path given in the child prompt (`/logi`: `<handoffDir>/<expert>/<expert>.json`; single-expert: `<handoffDir>/<expert>.json`) before replying, with:
   `{"schemaVersion":2,"expert":"<expert>","status":"ok|partial|failed","summary":"...","sections":{...},"tests":{"commands":[{"command":"...","status":"passed|failed|not-run","note":"..."}]},"findings":[...],"deferred":[],"notes":""}`
 - `tests.commands` 必须逐条覆盖 scope.testCommands（passed/failed/not-run + 原因）；不能省略或写“测试通过”概括。
-- Also write the matching Markdown report at the exact path given in the child prompt (`/logi`: `<handoffDir>/<expert>/<expert>.md`; single-expert: `<handoffDir>/<expert>.md`)（至少 500 字符）：Markdown 标题、覆盖的全部单元、发现项（`file:line` + 证据 + 影响）、抽样/未验证说明、建议修复顺序。总报告会索引这份专家报告。
+- Also write the matching Markdown report at the exact path given in the child prompt (`/logi`: `<handoffDir>/<expert>/<expert>.md`; single-expert: `<handoffDir>/<expert>.md`)（至少 500 字符）：Markdown 标题、覆盖的全部单元、发现项（简述 → 详细问题 → `file:line` → 证据 → 影响 → 修复）、抽样/未验证说明、建议修复顺序。总报告会索引这份专家报告。
 - Read-only: never edit source, commit, delete, format, install, or spawn another agent.
 
 ## Measure before claiming

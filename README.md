@@ -8,11 +8,11 @@
 >
 > 0.5.1 起，run 目录会带命令后缀：`/logi` 为 `...-master`，单专家为 `...-<expert>`；`/logi` 的 handoff 按专家分目录（`handoff/<expert>/<expert>.json`），单专家保持平铺（`handoff/<expert>.json`）。旧的平铺 run 仍可读取。
 >
-> 从 CodeCortexLoop（MIT，原仓库留存于 [master 分支](https://github.com/whitequeen306/dsh-logistics/tree/master)）迁移而来。0.2.0 删除评分、基线与门禁；0.3.0 起改为「主编模型 + 薄机器层」；0.4.0 把范围从改动集改成整个项目；0.5.0 把 `report.md` 定为唯一核心交付物，并要求每位专家单独写报告；0.5.1 让 run 目录和 `/logi` 的 handoff 按命令/专家分目录；0.6.0 移除 `/logi-fix`，插件不再提供写操作命令；0.6.1 在报告 contract 前增加确定性脱敏和残留凭据扫描；0.6.2 细化命令面板中的审查范围描述；0.6.3 把脱敏覆盖到全部运行产物，增加 finding 的 `direct`/`plan` 分区和结构化测试证据；0.6.4 把总报告改为按严重度排列并标注所属单元，同时生成 `graph.json` + `graph.html` 关系图。设计记录见 [MODULE-DECISION.md](./MODULE-DECISION.md)。
+> 从 CodeCortexLoop（MIT，原仓库留存于 [master 分支](https://github.com/whitequeen306/dsh-logistics/tree/master)）迁移而来。0.2.0 删除评分、基线与门禁；0.3.0 起改为「主编模型 + 薄机器层」；0.4.0 把范围从改动集改成整个项目；0.5.0 把 `report.md` 定为唯一核心交付物，并要求每位专家单独写报告；0.5.1 让 run 目录和 `/logi` 的 handoff 按命令/专家分目录；0.6.0 移除 `/logi-fix`，插件不再提供写操作命令；0.6.1 在报告 contract 前增加确定性脱敏和残留凭据扫描；0.6.2 细化命令面板中的审查范围描述；0.6.3 把脱敏覆盖到全部运行产物，增加 finding 的 `direct`/`plan` 分区和结构化测试证据；0.6.4 把总报告改为按严重度排列并标注所属单元，同时生成 `graph.json` + `graph.html` 关系图；0.6.5 要求每条 finding 先写一句面向非开发者的“简述”，再接详细问题、证据、影响和修复。设计记录见 [MODULE-DECISION.md](./MODULE-DECISION.md)。
 
 ## 核心交付物
 
-每次审查的最终产品是 **`.logistics/runs/<runId>-master/report.md`**（单专家为 `<runId>-<expert>`）：它必须能独立交给用户阅读，包含项目总览、单元 × 专家覆盖矩阵、按严重度排列并标注所属单元的问题、证据、修复顺序与覆盖缺口。`verdict.json` 只是机器判决，不能替代报告。
+每次审查的最终产品是 **`.logistics/runs/<runId>-master/report.md`**（单专家为 `<runId>-<expert>`）：它必须能独立交给用户阅读，包含项目总览、单元 × 专家覆盖矩阵、按严重度排列并标注所属单元的问题、证据、修复顺序与覆盖缺口。每个问题按 **简述 → 详细问题 → 证据 → 影响 → 修复** 展示：简述是一句给非开发者也看得懂的自然语言，详细问题保留原本的技术表述。`verdict.json` 只是机器判决，不能替代报告。
 
 每位专家还会写一份自己的报告：`/logi` 在 `handoff/<expert>/<expert>.md`，单专家在 `handoff/<expert>.md`；总报告必须索引这些专家报告。报告缺失、过短或缺少关键章节时，`verdict.mjs` 会拒绝该次 run。
 
@@ -36,7 +36,7 @@
 - **五个专家，按后果分工**：正确性、安全、健壮性（错误处理 + 测试）、可维护性（简化 + 清理）、性能（可选）。默认跑前四个。
 - **证据优先**：问题必须有位置、证据、触发路径和影响；没有证据的严重问题会被降级，不会靠“感觉”报高优。
 - **修复交给主模型**：报告中的每个 finding 都有稳定 ID 和 `kind`。需要修复时，把 `report.md` 或指定 ID 直接发给当前主会话模型；插件本身不执行写操作，也不维护独立 fixer。
-- **关系图**：同一次运行生成 `graph.html`，把模块、问题、问题之间的关系画成可交互的 SVG；`graph.json` 供其他工具消费。
+- **关系图**：同一次运行生成 `graph.html`，把模块和问题画成模块分栏的 SVG；卡片显示简述，悬停可看详细问题、证据、影响和修复；`graph.json` 供其他工具消费。
 - **DSH 原生**：命令由插件注册，专家通过内置 `subagent` 工具拉起；纯 ESM、零运行时依赖，不 import `@deepseek-ai/*`。
 
 ## 安装
@@ -54,7 +54,7 @@ C:\path\to\dsh-logistics
 **CLI / 非桌面 profile**：
 
 ```bash
-dsh plugin --profile web add dsh-logistics@0.6.2   # 0.6.4 仍在源码中，尚未发布
+dsh plugin --profile web add dsh-logistics@0.6.2   # 0.6.5 仍在源码中，尚未发布
 dsh plugin --profile web add "C:/path/to/dsh-logistics"   # 本地开发
 dsh --profile web --dump-config | grep -A2 dsh-logistics
 ```
@@ -203,17 +203,17 @@ docs/logistics/latest.md      # 仅默认四模块完整时更新
 
 - **项目总览**：项目根目录、HEAD、文件/单元/行数、本次覆盖的专家。
 - **单元 × 专家覆盖矩阵**：每个单元被哪位专家标记为 reviewed / sampled / skipped；缺失和无效单独标出。
-- **按严重度排序的问题**：critical → high → medium → low；每条标题前标注所属单元 `[uXX]`，并给位置、证据、影响、修复步骤、涉及文件、建议测试。
+- **按严重度排序的问题**：critical → high → medium → low；每条标题前标注所属单元 `[uXX]`，并按“简述 → 详细问题 → 证据 → 影响 → 修复”展示；简述用非开发者也能看懂的一句话，详细问题保留技术表述。
 - **未覆盖维度**：哪些单元只 sampled、哪些 skipped、哪些 handoff 失败/缺失。
 - **建议修复顺序**：同文件合并、根因先行、可维护性单独批次、性能单独批次。
 - **专家报告索引**：`/logi` 为 `handoff/<expert>/<expert>.md`，单专家为 `handoff/<expert>.md`；每位专家另有独立报告。
-- **关系图**：`graph.html` 按模块分栏展示问题，栏内按严重度排列；鼠标悬停问题卡片可查看完整标题、证据、影响和修复摘要；不画问题间连线。
+- **关系图**：`graph.html` 按模块分栏展示问题，栏内按严重度排列；卡片显示简述，鼠标悬停可查看详细问题、证据、影响和修复摘要；不画问题间连线。
 
-`report.md` 是核心交付物；`verdict.mjs` 会检查它是否存在、长度、关键章节、是否出现全部单元 ID、finding 是否有 `file:line`、`direct`/`plan` 是否各自进入 `## 可直接修` / `## 需方案`、是否包含 `## 测试证据` 与全部测试命令、是否按严重度排序并标注单元，以及专家报告是否存在且被总报告索引。报告不达标时，该次 run 不能算完成，也不会更新 `latest`。
+`report.md` 是核心交付物；`verdict.mjs` 会检查它是否存在、长度、关键章节、是否出现全部单元 ID、finding 是否有 `file:line`、是否按“简述 → 详细问题 → 证据 → 影响 → 修复”展示、`direct`/`plan` 是否各自进入 `## 可直接修` / `## 需方案`、是否包含 `## 测试证据` 与全部测试命令、是否按严重度排序并标注单元，以及专家报告是否存在且被总报告索引。报告不达标时，该次 run 不能算完成，也不会更新 `latest`。
 
 ### 关系图
 
-`graph.html` 由插件根据 `verdict.json` 确定性生成，不依赖 Graphviz、Mermaid 或任何外部 JS/CDN，直接用浏览器打开即可。图按模块分栏：每个模块是一栏，问题作为卡片放在所属模块栏内，因此“一对多”的模块归属由布局直接表达，不再画定位线；也不画问题之间的连线，避免大量卡片时线穿过正文。鼠标悬停任意问题卡片，会显示完整标题、证据、影响和修复摘要。`graph.json` 的 `nodes` 分模块和问题两类，`edges` 保留 `located-in` 定位数据和模型关系，供机器消费。关系只连接本次 verdict 中真实存在的 finding ID；未知 ID、自环、重复边会被拒绝或忽略。
+`graph.html` 由插件根据 `verdict.json` 确定性生成，不依赖 Graphviz、Mermaid 或任何外部 JS/CDN，直接用浏览器打开即可。图按模块分栏：每个模块是一栏，问题作为卡片放在所属模块栏内，因此“一对多”的模块归属由布局直接表达，不再画定位线；也不画问题之间的连线，避免大量卡片时线穿过正文。卡片显示模型写的一句话简述；鼠标悬停任意问题卡片，会显示详细问题、证据、影响和修复摘要。`graph.json` 的 `nodes` 分模块和问题两类，`edges` 保留 `located-in` 定位数据和模型关系，供机器消费。关系只连接本次 verdict 中真实存在的 finding ID；未知 ID、自环、重复边会被拒绝或忽略。
 
 ### 报告脱敏
 
@@ -221,7 +221,7 @@ docs/logistics/latest.md      # 仅默认四模块完整时更新
 
 脱敏后 `lib/report-check.js` 还会做一次残留扫描；报告里仍有疑似凭据时，该次 run 直接判为不合格。**脱敏不等于风险消除**：如果报告曾经包含真实凭据，请轮换该凭据，并检查 `docs/logistics/latest.md`、`.logistics/` 是否被误提交。
 
-每个 finding 有稳定 ID，例如 `SEC-4F2A1`。ID 由 `专家 | 类别 | 文件 | 归一化标题` 计算，**不含行号**；代码移动不会让同一个问题换 ID。跨专家报告同一根因时，由主编决定保留哪一条，其余写入 `verdict.json` 的 `dropped`。
+每个 finding 有稳定 ID，例如 `SEC-4F2A1`，并包含 `brief`（一句话简述）、`title`（详细问题）、证据、影响和修复。ID 由 `专家 | 类别 | 文件 | 归一化标题` 计算，**不含行号**；代码移动不会让同一个问题换 ID。跨专家报告同一根因时，由主编决定保留哪一条，其余写入 `verdict.json` 的 `dropped`。
 
 `verdict.json` 的 schemaVersion 为 `2`，是稳定接口；`docs/logistics/latest.md` 与 `.logistics/latest.json` 只在**默认四模块完整覆盖**时更新，单模块或部分覆盖会保留上一份完整报告。
 
@@ -298,7 +298,7 @@ docs/logistics/latest.md      # 仅默认四模块完整时更新
 ## 开发
 
 ```bash
-npm test          # node --test，89 个测试（含全项目 scope、单元覆盖、报告契约、测试证据、脱敏、端到端 contract 与运行日志）
+npm test          # node --test，90 个测试（含全项目 scope、单元覆盖、报告契约、测试证据、脱敏、端到端 contract 与运行日志）
 npm run check     # 语法检查 + 全部测试
 ```
 

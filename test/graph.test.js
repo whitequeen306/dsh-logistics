@@ -8,6 +8,7 @@ function finding(overrides = {}) {
   return {
     id: 'SEC-ABC12',
     title: '可被绕过的会话校验',
+    brief: '未登录的人也可能看到别人的会话内容。',
     severity: 'high',
     kind: 'direct',
     module: 'src',
@@ -52,6 +53,8 @@ test('builds a module-grouped graph with model relations', () => {
     const html = renderGraphHtml(graph)
     assert.doesNotMatch(html, /relation-edge/u)
     assert.doesNotMatch(html, /shared-root-cause/u)
+    assert.match(html, /简述：未登录的人也可能看到别人的会话内容/u)
+    assert.match(html, /详细问题：可被绕过的会话校验/u)
     assert.match(html, /证据：请求头缺失时直接跳过校验/u)
     assert.match(html, /影响：任意用户可读取他人会话/u)
   } finally {

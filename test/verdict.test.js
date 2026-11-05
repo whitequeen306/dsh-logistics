@@ -30,6 +30,35 @@ function completeRun(root) {
   return created
 }
 
+test('project verdict requires a non-developer brief for 0.6.5 findings', () => {
+  const root = initRepo()
+  try {
+    const created = makeProjectScope(root, ['security'])
+    const finding = { ...sampleFinding('security') }
+    delete finding.brief
+    write(
+      created.runDir,
+      'handoff/security.json',
+      JSON.stringify(projectHandoff('security', created.scope, [finding]), null, 2),
+    )
+    write(created.runDir, 'report.md', aggregateReport(created.scope, [finding]))
+    const result = validateVerdict({
+      root,
+      scope: created.scope,
+      verdict: {
+        schemaVersion: 2,
+        runId: created.scope.runId,
+        coverage: { expected: ['security'], received: ['security'], missing: [], complete: true },
+        findings: [finding],
+      },
+    })
+    assert.equal(result.ok, false)
+    assert.match(result.errors.join('\n'), /brief 不能为空/u)
+  } finally {
+    cleanup(root)
+  }
+})
+
 test('collect distinguishes optional-not-selected from required-missing', () => {
   const root = initRepo()
   try {

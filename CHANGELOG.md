@@ -2,6 +2,20 @@
 
 All notable changes to this project. Format follows [Keep a Changelog](https://keepachangelog.com/); versions use [SemVer](https://semver.org/).
 
+## [0.6.5] - 2026-11-05
+
+### Added
+
+- 每条 finding 新增 `brief`：一句面向非开发者的自然语言简述；`title` 继续保留详细技术问题。
+- 报告、专家报告、handoff 和关系图统一按“简述 → 详细问题 → 证据 → 影响 → 修复”展示；关系图卡片显示简述，悬停显示详细问题、证据、影响和修复摘要。
+- `report-check` 对 0.6.5 运行校验五个字段标签，并要求报告包含 verdict 中每条 finding 的 `brief`。
+
+### Changed
+
+- handoff 的 `findings[].brief` 对 0.6.5 项目运行必填；缺失会使 handoff invalid。
+- `verdict.json` 的 finding 增加 `brief`；五份专家 skill 和子代理 prompt 都要求先写简述。
+- 测试增至 90 个，新增简述报告契约与关系图悬停用例；本次不打包、不发布。
+
 ## [0.6.4] - 2026-11-05
 
 ### Added

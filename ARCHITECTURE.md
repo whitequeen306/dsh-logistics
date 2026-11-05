@@ -1,6 +1,6 @@
-# dsh-logistics 架构与执行模型（0.6.4）
+# dsh-logistics 架构与执行模型（0.6.5）
 
-> 本文描述 **0.6.4 已实现**的结构，不是路线图。0.4.0 把审查范围从「工作区 diff / 最近提交」改成**整个项目**：`git ls-files` 全量清单 → 文件分类 → 模块切分 → 审查单元；每个专家覆盖全部单元，并用 handoff 的 `units` 映射声明 reviewed / sampled / skipped。0.5.0 把 `report.md` 定为核心交付物，要求每位专家另写报告，并由 `lib/report-check.js` 做 contract 校验。0.5.1 给 run 目录加命令后缀（`/logi` 为 `-master`，单专家为 `-<expert>`），并让 `/logi` 的 handoff 按专家分目录，旧平铺 run 仍可读。0.6.0 移除 `/logi-fix` 与独立 fixer，插件不提供写操作命令；审查子代理仍受 prompt 约束，需要修复时由用户把报告或 finding 交给主模型。0.6.1 在报告 contract 校验前加入确定性脱敏与残留凭据扫描；0.6.2 细化 DSH 命令面板中的审查范围描述；0.6.3 把脱敏扩展到 run 目录下全部文本产物，增加结构化测试证据与 `direct`/`plan` 报告分区；0.6.4 把总报告改为按严重度排序并标注所属单元，并生成 `graph.json` + `graph.html` 关系图。0.3.x 的主编模型、contract 校验和运行日志继续保留。
+> 本文描述 **0.6.5 已实现**的结构，不是路线图。0.4.0 把审查范围从「工作区 diff / 最近提交」改成**整个项目**：`git ls-files` 全量清单 → 文件分类 → 模块切分 → 审查单元；每个专家覆盖全部单元，并用 handoff 的 `units` 映射声明 reviewed / sampled / skipped。0.5.0 把 `report.md` 定为核心交付物，要求每位专家另写报告，并由 `lib/report-check.js` 做 contract 校验。0.5.1 给 run 目录加命令后缀（`/logi` 为 `-master`，单专家为 `-<expert>`），并让 `/logi` 的 handoff 按专家分目录，旧平铺 run 仍可读。0.6.0 移除 `/logi-fix` 与独立 fixer，插件不提供写操作命令；审查子代理仍受 prompt 约束，需要修复时由用户把报告或 finding 交给主模型。0.6.1 在报告 contract 校验前加入确定性脱敏与残留凭据扫描；0.6.2 细化 DSH 命令面板中的审查范围描述；0.6.3 把脱敏扩展到 run 目录下全部文本产物，增加结构化测试证据与 `direct`/`plan` 报告分区；0.6.4 把总报告改为按严重度排序并标注所属单元，并生成 `graph.json` + `graph.html` 关系图；0.6.5 要求 finding 先写面向非开发者的 `brief`，再写详细问题、证据、影响和修复。0.3.x 的主编模型、contract 校验和运行日志继续保留。
 
 ## 1. 一句话模型
 
@@ -152,7 +152,7 @@ groupUnits:
 ```json
 {
   "schemaVersion": 2,
-  "version": "0.6.4",
+  "version": "0.6.5",
   "runId": "20261104-...",
   "mode": "project",
   "source": "project",
@@ -229,6 +229,7 @@ subagent({
 - 只负责一个模块；只加载自己的专家 skill。
 - **必须覆盖所有 `project.units`**，不能只看自己感兴趣的目录。
 - 每条 finding 必须有位置、证据、触发路径、影响。
+- 0.6.5 起，每条 finding 还必须有 `brief`：一句让非开发者也看得懂的自然语言简述；`title` 继续写详细的技术问题。
 - 必须声明所有 section 的检查计数；计数与 findings 不一致会被判无效。
 - 只写自己的 `handoff/<expert>/<expert>.json`（`/logi`）或 `handoff/<expert>.json`（单专家）；不读其他 child 的 handoff。
 
@@ -320,6 +321,7 @@ docs/logistics/latest.md # 仅默认四模块完整时更新
 - 0.6.3 起，`direct` findings 必须进入 `## 可直接修`、`plan` findings 必须进入 `## 需方案`，且正文出现 `[可直接修]` / `[需方案]` 标记；
 - 0.6.3 起，`## 测试证据` 必须包含 `scope.testCommands` 中的每一条命令；
 - 0.6.4 起，finding 的所属单元由报告路径映射到 `project.units`，并在报告中显式标出；
+- 0.6.5 起，`## 发现` 中每条 finding 按“简述 → 详细问题 → 证据 → 影响 → 修复”展示，且必须包含该 finding 的 `brief`；
 - 每位 expected 专家的 Markdown 报告存在、至少 500 字符、有 Markdown 标题（`/logi` 读 `handoff/<expert>/<expert>.md`，单专家读 `handoff/<expert>.md`，并回退旧平铺路径）；
 - 总报告包含每位专家的实际报告路径索引；
 - 总报告和专家报告中没有残留的疑似凭据（脱敏后仍命中则直接判不合格）。
@@ -330,7 +332,7 @@ docs/logistics/latest.md # 仅默认四模块完整时更新
 
 `verdict.json` 通过 `relations` 数组声明 finding 之间的关系：`{from,to,type,reason}`，`type` 只能是 `shared-root-cause`、`same-file`、`depends-on`、`contradicts`、`related`。`lib/verdict.js` 校验 ID 必须存在于本次 findings、禁止自环、禁止重复 `from->to:type`。
 
-`lib/graph.js` 的 `buildGraph({scope,verdict})` 生成模块节点（按 `moduleOf(file)` 从路径推导，避免模型把单元 ID 当模块）、finding 节点、`located-in` 定位边和模型关系边；`renderGraphHtml` 生成自包含 HTML + 内联 SVG：每个模块是一栏，按严重度排序的 finding 卡片放在所属模块栏内，用布局表达一对多归属；HTML 只画模块分栏，不画模块定位线或问题关系线，卡片 `<title>` 提供完整标题、证据、影响和修复摘要的悬停提示。`graph.json` 保留 `located-in` 和 `relations` 机器数据。不依赖 Graphviz/Mermaid/CDN。`writeGraph` 在 verdict 校验成功后写 `graph.json` 与 `graph.html`；图形生成失败会使本次 verdict 失败。
+`lib/graph.js` 的 `buildGraph({scope,verdict})` 生成模块节点（按 `moduleOf(file)` 从路径推导，避免模型把单元 ID 当模块）、finding 节点、`located-in` 定位边和模型关系边；`renderGraphHtml` 生成自包含 HTML + 内联 SVG：每个模块是一栏，按严重度排序的 finding 卡片放在所属模块栏内，用布局表达一对多归属；HTML 只画模块分栏，不画模块定位线或问题关系线，卡片显示 `brief`，`<title>` 提供“简述 / 详细问题 / 证据 / 影响 / 修复摘要”的悬停提示。`graph.json` 保留 `located-in` 和 `relations` 机器数据。不依赖 Graphviz/Mermaid/CDN。`writeGraph` 在 verdict 校验成功后写 `graph.json` 与 `graph.html`；图形生成失败会使本次 verdict 失败。
 
 ### 8.2 finding
 
@@ -343,6 +345,7 @@ docs/logistics/latest.md # 仅默认四模块完整时更新
   "severity": "high",
   "confidence": "high",
   "title": "一句话问题",
+  "brief": "给非开发者看的一句话说明",
   "file": "src/auth/session.js",
   "line": 42,
   "evidence": "可复现证据",
@@ -457,4 +460,4 @@ docs/logistics/latest.md # 仅默认四模块完整时更新
 - 日志：`lib/runlog.js`
 - CLI：`lib/cli/collect.mjs`、`bundle.mjs`、`verdict.mjs`
 - 专家 skill：`skills/logi-correctness|security|reliability|maintainability|perf/SKILL.md`
-- 测试：`test/*.test.js`（89 个）
+- 测试：`test/*.test.js`（90 个）
