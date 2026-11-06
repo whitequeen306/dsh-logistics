@@ -15,9 +15,11 @@ import {
   markCompleted,
   markStale,
   progressPath,
+  readChildren,
   readProgress,
   renderProgress,
   requestCancel,
+  setPhase,
   startProgress,
   waveDispatched,
 } from '../lib/progress.js'
@@ -59,14 +61,15 @@ test('wave and expert events update completion and findings', () => {
     for (const expert of DEFAULT_EXPERTS.slice(0, 4)) {
       progress = expertStarted(scope, expert, `child-${expert}`)
     }
+    assert.equal(readChildren(scope.output.runDir).runId, scope.runId)
     for (const expert of DEFAULT_EXPERTS.slice(0, 4)) {
       progress = expertFinished(scope, expert, { findings: 2 })
     }
     assert.equal(progress.waves.done, 1)
     assert.equal(progress.phase, 'experts')
 
-    progress = waveDispatched(scope, ['perf'])
     progress = expertStarted(scope, 'perf', 'child-perf')
+    assert.equal(progress.waves.dispatched, 2)
     progress = expertFinished(scope, 'perf', { findings: 3 })
     assert.equal(progress.waves.done, 2)
     assert.equal(progress.phase, 'collect')
@@ -80,6 +83,8 @@ test('wave and expert events update completion and findings', () => {
     const completed = markCompleted(scope)
     assert.equal(completed.units.covered, completed.units.total)
     assert.equal(completed.eta.lowMinutes, 0)
+    assert.equal(completed.phase, 'done')
+    assert.equal(setPhase(scope, 'verdict').phase, 'done')
     assert.doesNotMatch(renderProgress(scope, completed), /预计剩余/u)
     assert.doesNotMatch(
       renderProgress(scope, { ...completed, eta: { lowMinutes: 2, highMinutes: 4, basis: 'wave' } }),

@@ -2,6 +2,20 @@
 
 All notable changes to this project. Format follows [Keep a Changelog](https://keepachangelog.com/); versions use [SemVer](https://semver.org/).
 
+## [0.8.2] - 2026-11-06
+
+### Fixed
+
+- 完成态 `setPhase` 不再把 `completed/cancelled/failed` run 的 `phase` 改回 `verdict`；迟到的 contract 复跑只校验，不回退进度状态。
+- `children.json` 现在写入真实 `runId`，不再默认 `null`。
+- `progress.waves.dispatched` 会根据已启动/已完成的专家反推，避免模型漏发第二波 `wave.dispatched` 时出现 `dispatched: 1 / done: 2`。
+- 关系图生成后再次执行全量文本脱敏，避免 `graph.html` 重新带出凭据导致多轮 verdict 重试。
+- `verdict.validated` 运行日志写入 `warnings`，测试状态冲突和临时文件警告不再只留在 `handoffs.json`。
+
+### Notes
+
+- 测试保持 107 个；本次只修收尾状态，不改变审查范围或报告格式。
+
 ## [0.8.1] - 2026-11-06
 
 ### Fixed

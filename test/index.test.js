@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { apply, inject, name } from '../lib/index.js'
 
-test('plugin entry registers all 0.8.1 skills and commands against a DSH-like context', () => {
+test('plugin entry registers all 0.8.2 skills and commands against a DSH-like context', () => {
   const skills = []
   const commands = []
   const logs = []
