@@ -43,6 +43,26 @@ test('core files and minimum reads are part of the project scope', () => {
   }
 })
 
+test('different experts reporting opposite test results produce a warning', () => {
+  const root = initRepo()
+  try {
+    const { scope } = makeProjectScope(root, ['correctness', 'security'])
+    const firstTest = scope.testCommands?.[0] ?? scope.testCommand
+    const command = typeof firstTest === 'string' ? firstTest : firstTest?.command
+    const correctness = projectHandoff('correctness', scope)
+    correctness.tests.commands = [{ command, status: 'passed', note: '本地通过' }]
+    const security = projectHandoff('security', scope)
+    security.tests.commands = [{ command, status: 'failed', note: '缺少依赖' }]
+    writeFileSync(handoffJsonPath(scope, 'correctness'), `${JSON.stringify(correctness, null, 2)}\n`)
+    writeFileSync(handoffJsonPath(scope, 'security'), `${JSON.stringify(security, null, 2)}\n`)
+    const inventory = loadHandoffs({ root, scope })
+    assert.match(inventory.warnings.join('\n'), /测试状态冲突/u)
+    assert.match(inventory.warnings.join('\n'), new RegExp(command.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'u'))
+  } finally {
+    cleanup(root)
+  }
+})
+
 test('project handoffs must declare actual files and every core file', () => {
   const { root, scope } = fixture()
   try {

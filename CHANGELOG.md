@@ -2,6 +2,20 @@
 
 All notable changes to this project. Format follows [Keep a Changelog](https://keepachangelog.com/); versions use [SemVer](https://semver.org/).
 
+## [0.8.1] - 2026-11-06
+
+### Fixed
+
+- 完成/取消/失败的 run 不再显示“预计剩余”；`markCompleted` 把 `units.covered` 写为总单元数。
+- 超过 2 小时没有进度心跳的 `running/cancelling` run 标记为 `failed` / `phase: stale`，`/logi-status` 不再把它当活动任务，`/logi-cancel` 不会误取消幽灵 run。
+- 最终 `verdict.mjs` 检查 run 根目录，警告模型留下的 `*.mjs`、`*.bak`、调试脚本或额外目录；模型 prompt 仍要求自行删除。
+- 跨专家对同一测试命令报告相反的 passed/failed 时，`loadHandoffs` 写入“测试状态冲突”警告，报告必须说明实际执行结果。
+- 测试增至 107 个，新增 stale run、完成态 ETA/单元覆盖、run 根临时文件、测试状态冲突用例。
+
+### Notes
+
+- 本次只做源码修改，尚未打包/发布；npm 最新仍是 0.8.0，Desktop 仍是 0.8.0。
+
 ## [0.8.0] - 2026-11-05
 
 ### Added

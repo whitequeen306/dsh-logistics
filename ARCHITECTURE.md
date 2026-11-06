@@ -1,6 +1,6 @@
-# dsh-logistics 架构与执行模型（0.8.0）
+# dsh-logistics 架构与执行模型（0.8.1）
 
-> 本文描述 **0.8.0 已实现**的结构，不是路线图。0.4.0 把审查范围从「工作区 diff / 最近提交」改成**整个项目**：`git ls-files` 全量清单 → 文件分类 → 模块切分 → 审查单元；每个专家覆盖全部单元，并用 handoff 的 `units` 映射声明 reviewed / sampled / skipped。0.5.0 把 `report.md` 定为核心交付物，要求每位专家另写报告，并由 `lib/report-check.js` 做 contract 校验。0.5.1 给 run 目录加命令后缀（`/logi` 为 `-master`，单专家为 `-<expert>`），并让 `/logi` 的 handoff 按专家分目录，旧平铺 run 仍可读。0.6.0 移除 `/logi-fix` 与独立 fixer，插件不提供写操作命令；审查子代理仍受 prompt 约束，需要修复时由用户把报告或 finding 交给主模型。0.6.1 在报告 contract 校验前加入确定性脱敏与残留凭据扫描；0.6.2 细化 DSH 命令面板中的审查范围描述；0.6.3 把脱敏扩展到 run 目录下全部文本产物，增加结构化测试证据与 `direct`/`plan` 报告分区；0.6.4 把总报告改为按严重度排序并标注所属单元，并生成 `graph.json` + `graph.html` 关系图；0.6.5 要求 finding 先写面向非开发者的 `brief`，再写详细问题、证据、影响和修复；0.6.6 为每个单元增加核心必读清单和最低实际读取数，handoff 必须列出实际读过的文件；0.6.7 把脱敏扩展到 `.bak`、临时脚本等常规文本产物，`latest` 只由最终 contract 通过的默认 `/logi` 发布，并要求模型删除自己创建的临时文件；0.7.0 将性能纳入默认 `/logi`，补齐 maintainability 的耦合度、reliability 的 resilience/observability、security 的业务逻辑滥用，并清理 correctness/security 的 diff 语义；0.8.0 增加启动 ETA、`progress.json`/`children.json`、`/logi-status`、`/logi-cancel` 和按波次更新的进度检查点。0.3.x 的主编模型、contract 校验和运行日志继续保留。
+> 本文描述 **0.8.1 已实现**的结构，不是路线图。0.4.0 把审查范围从「工作区 diff / 最近提交」改成**整个项目**：`git ls-files` 全量清单 → 文件分类 → 模块切分 → 审查单元；每个专家覆盖全部单元，并用 handoff 的 `units` 映射声明 reviewed / sampled / skipped。0.5.0 把 `report.md` 定为核心交付物，要求每位专家另写报告，并由 `lib/report-check.js` 做 contract 校验。0.5.1 给 run 目录加命令后缀（`/logi` 为 `-master`，单专家为 `-<expert>`），并让 `/logi` 的 handoff 按专家分目录，旧平铺 run 仍可读。0.6.0 移除 `/logi-fix` 与独立 fixer，插件不提供写操作命令；审查子代理仍受 prompt 约束，需要修复时由用户把报告或 finding 交给主模型。0.6.1 在报告 contract 校验前加入确定性脱敏与残留凭据扫描；0.6.2 细化 DSH 命令面板中的审查范围描述；0.6.3 把脱敏扩展到 run 目录下全部文本产物，增加结构化测试证据与 `direct`/`plan` 报告分区；0.6.4 把总报告改为按严重度排序并标注所属单元，并生成 `graph.json` + `graph.html` 关系图；0.6.5 要求 finding 先写面向非开发者的 `brief`，再写详细问题、证据、影响和修复；0.6.6 为每个单元增加核心必读清单和最低实际读取数，handoff 必须列出实际读过的文件；0.6.7 把脱敏扩展到 `.bak`、临时脚本等常规文本产物，`latest` 只由最终 contract 通过的默认 `/logi` 发布，并要求模型删除自己创建的临时文件；0.7.0 将性能纳入默认 `/logi`，补齐 maintainability 的耦合度、reliability 的 resilience/observability、security 的业务逻辑滥用，并清理 correctness/security 的 diff 语义；0.8.0 增加启动 ETA、`progress.json`/`children.json`、`/logi-status`、`/logi-cancel` 和按波次更新的进度检查点；0.8.1 清零终态 ETA、完成时写入单元覆盖数、把超过 2 小时无心跳的 run 标记为 stale failed，并在最终校验时警告 run 根目录临时文件和跨专家测试状态冲突。0.3.x 的主编模型、contract 校验和运行日志继续保留。
 
 ## 1. 一句话模型
 
@@ -154,7 +154,7 @@ groupUnits:
 ```json
 {
   "schemaVersion": 2,
-  "version": "0.8.0",
+  "version": "0.8.1",
   "runId": "20261104-...",
   "mode": "project",
   "source": "project",
@@ -216,10 +216,15 @@ groupUnits:
 - `phase`：`dispatch` / `experts` / `collect` / `bundle` / `verdict` / `done`；
 - `experts`：每位专家的状态、child ID、startedAt、findings；
 - `waves`：总波数、已派发、已完成；
-- `eta`：按专家数、单元数、文件数静态估算，第一波后按实际耗时修正；
+- `eta`：按专家数、单元数、文件数静态估算，第一波后按实际耗时修正；`completed/cancelled/failed` 或波次全部完成时清零；
+- `units.covered`：完成时写为总单元数；
 - `cancelRequested`：`/logi-cancel` 写入后阻止下一波，且 `latest` 不发布。
 
 主编模型按 `dispatch.md` 的“进度与取消”一节，在波次和专家完成时调用 `lib/cli/progress.mjs`；`/logi-status` 读取最近一次的运行进度。`/logi-cancel` 只阻止下一波，不假装能立即杀死正在运行的子代理。
+
+超过 `STALE_AFTER_MS = 2h` 没有 `updatedAt` 心跳的 `running/cancelling` run 视为过期：`/logi-status` 会把它标记为 `failed` + `phase: stale`，`/logi-cancel` 不再把它当作活动任务。
+
+`lib/artifacts.js` 的 `runExtraFiles/runExtraDirs` 在最终 `verdict.mjs` 中检查 run 根目录，警告模型临时脚本/备份/调试目录；跨专家对同一测试命令报告相反的 passed/failed 时，`lib/handoffs.js` 的 `testConflicts` 写入报告警告，要求主编说明实际执行结果。
 
 ## 7. 子代理协议
 
@@ -474,6 +479,7 @@ docs/logistics/latest.md # 仅默认五专家完整时更新
 - 报告脱敏：`lib/redact.js`
 - latest 发布：`lib/latest.js`
 - 进度/ETA/取消：`lib/progress.js`、`lib/cli/progress.mjs`
+- 运行目录临时文件：`lib/artifacts.js`
 - 报告契约：`lib/report-check.js`
 - 测试命令展示：`lib/test-command.js`
 - 裁决：`lib/verdict.js`
@@ -482,4 +488,4 @@ docs/logistics/latest.md # 仅默认五专家完整时更新
 - 日志：`lib/runlog.js`
 - CLI：`lib/cli/collect.mjs`、`bundle.mjs`、`verdict.mjs`
 - 专家 skill：`skills/logi-correctness|security|reliability|maintainability|perf/SKILL.md`
-- 测试：`test/*.test.js`（104 个）
+- 测试：`test/*.test.js`（107 个）

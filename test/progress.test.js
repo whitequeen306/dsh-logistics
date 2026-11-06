@@ -1,15 +1,20 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { DEFAULT_EXPERTS } from '../lib/constants.js'
 import { shouldPublishLatest } from '../lib/latest.js'
 import {
+  STALE_AFTER_MS,
   estimateEta,
   expertFinished,
   expertStarted,
   findRunWithScope,
   initialProgress,
+  isStaleProgress,
   markCancelled,
   markCompleted,
+  markStale,
+  progressPath,
   readProgress,
   renderProgress,
   requestCancel,
@@ -71,7 +76,15 @@ test('wave and expert events update completion and findings', () => {
     const text = renderProgress(scope, progress)
     assert.match(text, /专家 5\/5/u)
     assert.match(text, /findings 11/u)
-    assert.match(text, /预计剩余/u)
+    assert.doesNotMatch(text, /预计剩余/u)
+    const completed = markCompleted(scope)
+    assert.equal(completed.units.covered, completed.units.total)
+    assert.equal(completed.eta.lowMinutes, 0)
+    assert.doesNotMatch(renderProgress(scope, completed), /预计剩余/u)
+    assert.doesNotMatch(
+      renderProgress(scope, { ...completed, eta: { lowMinutes: 2, highMinutes: 4, basis: 'wave' } }),
+      /预计剩余/u,
+    )
     assert.equal(findRunWithScope(root)?.scope.runId, scope.runId)
   } finally {
     cleanup(root)
@@ -107,6 +120,27 @@ test('eta has a wave basis after the first wave', () => {
     assert.equal(eta.basis, 'static')
     assert.ok(eta.lowMinutes >= 3)
     assert.equal(initialProgress(scope).units.total, scope.project.units.length)
+  } finally {
+    cleanup(root)
+  }
+})
+
+test('stale running progress is not active and is marked failed', () => {
+  const root = initRepo()
+  try {
+    const { scope } = makeProjectScope(root, DEFAULT_EXPERTS)
+    startProgress(scope)
+    const file = progressPath(scope.output.runDir)
+    const raw = JSON.parse(readFileSync(file, 'utf8'))
+    raw.updatedAt = new Date(Date.now() - STALE_AFTER_MS - 60_000).toISOString()
+    writeFileSync(file, `${JSON.stringify(raw, null, 2)}\n`)
+    assert.equal(findRunWithScope(root, { activeOnly: true }), null)
+    const stale = readProgress(scope.output.runDir)
+    assert.equal(isStaleProgress(stale), true)
+    const marked = markStale(scope, stale)
+    assert.equal(marked.status, 'failed')
+    assert.equal(marked.phase, 'stale')
+    assert.match(marked.error, /过期/u)
   } finally {
     cleanup(root)
   }
