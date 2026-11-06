@@ -1,5 +1,9 @@
 # dsh-logistics
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/whitequeen306/dsh-logistics/main/assets/icon-512.png" width="112" height="112" alt="dsh-logistics icon">
+</p>
+
 **项目后勤，为 DeepSeek Harness 而生。**
 
 安装后获得一组 `/logi-*` 命令：先把**整个项目**做成确定性的文件清单和审查单元，再让专家子代理逐单元审查，最后由**你当前的主会话模型**担任主编，合并证据、定级、写一份完整的项目报告。机器只负责事实、范围、收集和 contract 校验，不替你打分或做质量裁决。
@@ -54,7 +58,7 @@ C:\path\to\dsh-logistics
 **CLI / 非桌面 profile**：
 
 ```bash
-dsh plugin --profile web add dsh-logistics@0.8.2   # 0.8.2 源码已完成，发布前请确认 npm 已更新
+dsh plugin --profile web add dsh-logistics@0.8.2   # 当前 npm 发布版本
 dsh plugin --profile web add "C:/path/to/dsh-logistics"   # 本地开发
 dsh --profile web --dump-config | grep -A2 dsh-logistics
 ```

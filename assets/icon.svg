@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">dsh-logistics icon</title>
+  <desc id="desc">An L-shaped review path with five expert nodes and a checkmark tip.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0B1526"/>
+      <stop offset="0.55" stop-color="#0E1A2F"/>
+      <stop offset="1" stop-color="#13233D"/>
+    </linearGradient>
+    <radialGradient id="sheen" cx="0.18" cy="0.08" r="0.8">
+      <stop offset="0" stop-color="#7DD3FC" stop-opacity="0.16"/>
+      <stop offset="0.55" stop-color="#7DD3FC" stop-opacity="0.035"/>
+      <stop offset="1" stop-color="#7DD3FC" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="mark" x1="0.05" y1="0.9" x2="0.95" y2="0.1">
+      <stop offset="0" stop-color="#22D3EE"/>
+      <stop offset="0.5" stop-color="#2DD4BF"/>
+      <stop offset="1" stop-color="#6EE7B7"/>
+    </linearGradient>
+    <linearGradient id="tip" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#F59E0B"/>
+      <stop offset="1" stop-color="#FDE68A"/>
+    </linearGradient>
+    <filter id="glow" x="-35%" y="-35%" width="170%" height="170%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="14" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.13  0 0 0 0 0.83  0 0 0 0 0.75  0 0 0 0.55 0" result="tint"/>
+      <feMerge>
+        <feMergeNode in="tint"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect x="8" y="8" width="496" height="496" rx="116" fill="url(#bg)"/>
+  <rect x="8" y="8" width="496" height="496" rx="116" fill="url(#sheen)"/>
+  <rect x="8.8" y="8.8" width="494.4" height="494.4" rx="115.2" fill="none" stroke="#263A57" stroke-width="1.6"/>
+  <rect x="23" y="23" width="466" height="466" rx="101" fill="none" stroke="#1B2C46" stroke-width="1.4" opacity="0.9"/>
+
+  <path d="M134 150 V325 Q134 345 154 345 H224 L390 160"
+        fill="none" stroke="url(#mark)" stroke-width="34"
+        stroke-linecap="round" stroke-linejoin="round"
+        filter="url(#glow)" opacity="0.9"/>
+
+  <g>
+    <circle cx="134" cy="150" r="11.5" fill="url(#mark)" stroke="#0B1526" stroke-width="5"/>
+    <circle cx="134" cy="325" r="11.5" fill="url(#mark)" stroke="#0B1526" stroke-width="5"/>
+    <circle cx="224" cy="345" r="11.5" fill="url(#mark)" stroke="#0B1526" stroke-width="5"/>
+    <circle cx="307" cy="252" r="11.5" fill="url(#mark)" stroke="#0B1526" stroke-width="5"/>
+    <circle cx="390" cy="160" r="13" fill="url(#tip)" stroke="#0B1526" stroke-width="5"/>
+  </g>
+</svg>
